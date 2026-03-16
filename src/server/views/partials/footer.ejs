@@ -1,0 +1,93 @@
+  </main>
+
+  <script>
+    async function apiAction(url, method = 'POST', body = null) {
+      try {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(url, opts);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      } catch (err) {
+        alert('Error: ' + err.message);
+        throw err;
+      }
+    }
+
+    async function approvePost(id) {
+      await apiAction(`/api/posts/${id}/approve`);
+      window.location.reload();
+    }
+
+    async function rejectPost(id) {
+      if (!confirm('Reject this post?')) return;
+      await apiAction(`/api/posts/${id}/reject`);
+      window.location.reload();
+    }
+
+    async function regeneratePost(id, btn) {
+      if (!confirm('Regenerate caption for this post? The current caption will be discarded.')) return;
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      try {
+        await apiAction(`/api/posts/${id}/regenerate`);
+        window.location.reload();
+      } catch {
+        btn.disabled = false;
+        btn.textContent = 'Regenerate';
+      }
+    }
+
+    function startEditCaption(id) {
+      document.getElementById(`caption-display-${id}`).classList.add('hidden');
+      document.getElementById(`edit-btn-${id}`).classList.add('hidden');
+      document.getElementById(`caption-edit-${id}`).classList.remove('hidden');
+      document.getElementById(`caption-textarea-${id}`).focus();
+    }
+
+    function cancelEditCaption(id) {
+      document.getElementById(`caption-edit-${id}`).classList.add('hidden');
+      document.getElementById(`caption-display-${id}`).classList.remove('hidden');
+      document.getElementById(`edit-btn-${id}`).classList.remove('hidden');
+      // Reset textarea to current display value
+      document.getElementById(`caption-textarea-${id}`).value =
+        document.getElementById(`caption-display-${id}`).textContent;
+    }
+
+    async function saveCaption(id) {
+      const caption = document.getElementById(`caption-textarea-${id}`).value;
+      await apiAction(`/api/posts/${id}/caption`, 'PUT', { caption });
+      document.getElementById(`caption-display-${id}`).textContent = caption;
+      cancelEditCaption(id);
+    }
+
+    async function publishPost(id, platforms, btn) {
+      const names = platforms.join(' & ');
+      if (!confirm(`Publish this post to ${names}?`)) return;
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Publishing...';
+      try {
+        await apiAction(`/api/posts/${id}/publish`, 'POST', { platforms });
+        window.location.reload();
+      } catch {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    async function runPipeline(btn) {
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      try {
+        await apiAction('/api/pipeline/run');
+        window.location.href = '/?status=pending';
+      } catch {
+        btn.disabled = false;
+        btn.textContent = 'Generate New Post';
+      }
+    }
+  </script>
+</body>
+</html>

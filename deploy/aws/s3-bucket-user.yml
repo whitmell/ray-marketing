@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an S3 bucket and IAM user with read/write access to that bucket.
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: ''
+    Description: Optional custom bucket name. Leave empty to let CloudFormation generate a unique name.
+  UserName:
+    Type: String
+    Default: marketing-pipeline-s3-user
+    Description: IAM user name for bucket access.
+
+Conditions:
+  HasBucketName: !Not [!Equals [!Ref BucketName, '']]
+
+Resources:
+  AppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If [HasBucketName, !Ref BucketName, !Ref AWS::NoValue]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  BucketAccessUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref UserName
+      Policies:
+        - PolicyName: BucketReadWritePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: BucketListAndLocation
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt AppBucket.Arn
+              - Sid: ObjectReadWrite
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:AbortMultipartUpload
+                  - s3:ListMultipartUploadParts
+                Resource: !Sub '${AppBucket.Arn}/*'
+
+  BucketAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref BucketAccessUser
+      Status: Active
+
+Outputs:
+  BucketName:
+    Description: Name of the S3 bucket.
+    Value: !Ref AppBucket
+
+  BucketArn:
+    Description: ARN of the S3 bucket.
+    Value: !GetAtt AppBucket.Arn
+
+  IamUserName:
+    Description: IAM user with read/write access to the bucket.
+    Value: !Ref BucketAccessUser
+
+  AccessKeyId:
+    Description: Access key ID for the IAM user.
+    Value: !Ref BucketAccessKey
+
+  SecretAccessKey:
+    Description: Secret access key for the IAM user. This is only available when the stack is created.
+    Value: !GetAtt BucketAccessKey.SecretAccessKey

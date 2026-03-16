@@ -1,0 +1,30 @@
+{
+  "name": "ray-matthews-marketing-pipeline",
+  "version": "1.0.0",
+  "description": "Automated marketing pipeline for Ray Matthews fine art photography",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-views",
+    "copy-views": "node -e \"const fs=require('fs');function cp(s,d){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>{const sp=s+'/'+f,dp=d+'/'+f;fs.statSync(sp).isDirectory()?cp(sp,dp):fs.copyFileSync(sp,dp)})}cp('src/server/views','dist/server/views')\"",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@aws-sdk/client-s3": "^3.1006.0",
+    "dotenv": "^16.4.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/ejs": "^3.1.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,123 @@
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4">
+  <div class="flex items-start justify-between mb-3">
+    <div>
+      <h3 class="text-lg font-semibold text-gray-900"><%= post.photoTitle %></h3>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-700">
+          <%= post.primaryTheme %>
+        </span>
+        <span class="text-xs text-gray-500">
+          <%= new Date(post.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) %>
+        </span>
+      </div>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <% if (post.status === 'pending') { %>
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>
+      <% } else if (post.status === 'approved') { %>
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>
+      <% } else { %>
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>
+      <% } %>
+      <% if (post.publishedTo && post.publishedTo.length > 0) { %>
+        <% for (const pub of post.publishedTo) { %>
+          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium <%= pub.platform === 'facebook' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700' %>">
+            <%= pub.platform === 'facebook' ? 'FB' : 'IG' %> &#10003;
+          </span>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+  <details class="mb-3">
+    <summary class="text-sm text-gray-500 cursor-pointer hover:text-gray-700">Photo Description</summary>
+    <p class="text-sm text-gray-600 mt-1 pl-4"><%= post.photoDescription %></p>
+  </details>
+
+  <div class="bg-gray-50 rounded-md p-4 mb-3 border border-gray-100" id="caption-block-<%= post.id %>">
+    <div class="flex items-center justify-between mb-2">
+      <h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider">Generated Caption</h4>
+      <% if (post.status === 'pending') { %>
+        <button onclick="startEditCaption('<%= post.id %>')"
+                id="edit-btn-<%= post.id %>"
+                class="text-xs text-brand-600 hover:text-brand-700 hover:underline">
+          Edit
+        </button>
+      <% } %>
+    </div>
+    <div class="caption-text text-sm text-gray-800 leading-relaxed" id="caption-display-<%= post.id %>"><%= post.caption %></div>
+    <div class="hidden" id="caption-edit-<%= post.id %>">
+      <textarea id="caption-textarea-<%= post.id %>"
+                class="w-full text-sm text-gray-800 leading-relaxed border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 resize-y"
+                rows="10"><%= post.caption %></textarea>
+      <div class="flex justify-end gap-2 mt-2">
+        <button onclick="cancelEditCaption('<%= post.id %>')"
+                class="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-md transition-colors">
+          Cancel
+        </button>
+        <button onclick="saveCaption('<%= post.id %>')"
+                class="px-3 py-1.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between">
+    <a href="<%= post.faaUrl %>" target="_blank" rel="noopener"
+       class="text-sm text-brand-600 hover:text-brand-700 hover:underline">
+      View on FineArtAmerica &rarr;
+    </a>
+
+    <div class="flex items-center gap-2">
+      <% if (post.status === 'pending') { %>
+        <button onclick="approvePost('<%= post.id %>')"
+                class="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors">
+          Approve
+        </button>
+        <button onclick="regeneratePost('<%= post.id %>')"
+                class="px-3 py-1.5 text-sm font-medium text-yellow-700 bg-yellow-100 hover:bg-yellow-200 rounded-md transition-colors">
+          Regenerate
+        </button>
+        <button onclick="rejectPost('<%= post.id %>')"
+                class="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors">
+          Reject
+        </button>
+      <% } %>
+      <% if (post.status === 'approved') { %>
+        <% const publishedPlatforms = (post.publishedTo || []).map(p => p.platform); %>
+        <% const hasFb = publishedPlatforms.includes('facebook'); %>
+        <% const hasIg = publishedPlatforms.includes('instagram'); %>
+        <% if (!hasFb && !hasIg) { %>
+          <button onclick="publishPost('<%= post.id %>', ['facebook', 'instagram'], this)"
+                  class="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors">
+            Publish to Both
+          </button>
+        <% } %>
+        <% if (!hasFb) { %>
+          <button onclick="publishPost('<%= post.id %>', ['facebook'], this)"
+                  class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">
+            Publish to Facebook
+          </button>
+        <% } %>
+        <% if (!hasIg) { %>
+          <button onclick="publishPost('<%= post.id %>', ['instagram'], this)"
+                  class="px-3 py-1.5 text-sm font-medium text-white bg-pink-600 hover:bg-pink-700 rounded-md transition-colors">
+            Publish to Instagram
+          </button>
+        <% } %>
+        <% if (hasFb && hasIg) { %>
+          <span class="text-sm text-green-600 font-medium">Published to all platforms</span>
+        <% } %>
+      <% } %>
+      <% if (post.reviewedAt) { %>
+        <span class="text-xs text-gray-400">
+          Reviewed: <%= new Date(post.reviewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %>
+        </span>
+      <% } %>
+      <% if (post.notes) { %>
+        <span class="text-xs text-gray-400 italic">(<%= post.notes %>)</span>
+      <% } %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,26 @@
+services:
+  pipeline:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./resources:/app/resources:ro
+      - ./data:/app/data
+      - ./photos:/app/photos:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+      - PORT=3000
+      - PIPELINE_CRON=${PIPELINE_CRON:-0 9 * * 1}
+      - TIMEZONE=${TIMEZONE:-America/New_York}
+      - RESOURCES_PATH=/app/resources
+      - DATA_PATH=/app/data
+      - PHOTOS_PATH=/app/photos
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET=${S3_BUCKET}
+      - META_PAGE_ACCESS_TOKEN=${META_PAGE_ACCESS_TOKEN}
+      - FACEBOOK_PAGE_ID=${FACEBOOK_PAGE_ID}
+      - INSTAGRAM_USER_ID=${INSTAGRAM_USER_ID}
+    restart: unless-stopped
