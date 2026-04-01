@@ -2,19 +2,30 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Post, PostView, PublishRecord } from '../data/types';
 import { readPosts, writePosts, loadPhotoCandidates } from '../data/store';
 import { classifyTheme } from './theme.service';
-import { selectNextPhoto } from './photo-selector.service';
+import { selectNextPhoto, selectCandidatePhotos } from './photo-selector.service';
 import { generateCaption } from './caption.service';
+import { scorePhotos } from './scoring.service';
 import { uploadPhotoToS3 } from './s3.service';
 import { publishToFacebook, publishToInstagram } from './publish.service';
 
 export async function runPipeline(): Promise<PostView | null> {
-  const photo = selectNextPhoto();
-  if (!photo) {
+  const candidatePhotos = selectCandidatePhotos(3);
+  if (candidatePhotos.length === 0) {
     console.log('[Pipeline] No unused photos available');
     return null;
   }
 
-  console.log(`[Pipeline] Selected: ${photo.filename} (theme: ${photo.primaryTheme})`);
+  console.log(`[Pipeline] Scoring ${candidatePhotos.length} candidates: ${candidatePhotos.map(p => p.filename).join(', ')}`);
+
+  const candidates = await scorePhotos(candidatePhotos);
+  const selectedCandidate = candidates.find(c => c.selected);
+  if (!selectedCandidate) {
+    console.log('[Pipeline] No candidate selected after scoring');
+    return null;
+  }
+
+  const photo = candidatePhotos.find(p => p.filename === selectedCandidate.filename)!;
+  console.log(`[Pipeline] Selected: ${photo.filename} (theme: ${photo.primaryTheme}, rank: ${selectedCandidate.curatorRanking?.rank ?? 'fallback'})`);
 
   const caption = await generateCaption(photo.title, photo.description, photo.faaUrl);
 
@@ -29,6 +40,7 @@ export async function runPipeline(): Promise<PostView | null> {
     notes: null,
     imageUrl: null,
     publishedTo: [],
+    candidates,
   };
 
   const posts = readPosts();
@@ -157,6 +169,42 @@ export async function publishPost(
   return post;
 }
 
+export async function selectCandidate(postId: string, filename: string): Promise<PostView | null> {
+  const posts = readPosts();
+  const post = posts.find(p => p.id === postId);
+  if (!post || post.status !== 'pending') return null;
+
+  const candidate = post.candidates.find(c => c.filename === filename);
+  if (!candidate) return null;
+
+  // Update selection flags
+  for (const c of post.candidates) {
+    c.selected = c.filename === filename;
+  }
+
+  // Look up photo metadata for caption generation
+  const allPhotos = loadPhotoCandidates(classifyTheme);
+  const photo = allPhotos.find(c => c.filename === filename);
+  if (!photo) return null;
+
+  // Generate new caption for the selected photo
+  const caption = await generateCaption(photo.title, photo.description, photo.faaUrl);
+  post.caption = caption;
+  post.photoFilename = filename;
+  post.primaryTheme = photo.primaryTheme;
+
+  writePosts(posts);
+  console.log(`[Pipeline] Switched post ${postId} to candidate "${photo.title}"`);
+
+  return {
+    ...post,
+    photoTitle: photo.title,
+    photoDescription: photo.description,
+    photoTags: photo.tags,
+    faaUrl: photo.faaUrl,
+  };
+}
+
 export async function regeneratePost(postId: string): Promise<PostView | null> {
   const posts = readPosts();
   const oldPost = posts.find(p => p.id === postId);
@@ -185,6 +233,7 @@ export async function regeneratePost(postId: string): Promise<PostView | null> {
     notes: null,
     imageUrl: null,
     publishedTo: [],
+    candidates: oldPost.candidates ?? [],
   };
 
   posts.push(newPost);

@@ -58,7 +58,7 @@
     async function saveCaption(id) {
       const caption = document.getElementById(`caption-textarea-${id}`).value;
       await apiAction(`/api/posts/${id}/caption`, 'PUT', { caption });
-      document.getElementById(`caption-display-${id}`).textContent = caption;
+      document.getElementById(`caption-display-${id}`).innerHTML = caption.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       cancelEditCaption(id);
     }
 
@@ -86,6 +86,38 @@
       } catch {
         btn.disabled = false;
         btn.textContent = 'Generate New Post';
+      }
+    }
+
+    async function selectCandidate(id, filename, btn) {
+      if (!confirm('Select this photo and generate a new caption for it?')) return;
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Generating caption...';
+      try {
+        await apiAction(`/api/posts/${id}/select-candidate`, 'POST', { filename });
+        window.location.reload();
+      } catch {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    function switchCandidateTab(postId, activeIdx) {
+      const container = document.getElementById(`candidates-${postId}`);
+      if (!container) return;
+      // Update all tabs and panels for this post
+      container.querySelectorAll('[id^="panel-"]').forEach(panel => panel.classList.add('hidden'));
+      container.querySelectorAll('[id^="tab-"]').forEach(tab => {
+        tab.classList.remove('text-brand-700', 'bg-brand-50', 'border-b-2', 'border-brand-600');
+        tab.classList.add('text-gray-500');
+      });
+      const activePanel = document.getElementById(`panel-${postId}-${activeIdx}`);
+      const activeTab = document.getElementById(`tab-${postId}-${activeIdx}`);
+      if (activePanel) activePanel.classList.remove('hidden');
+      if (activeTab) {
+        activeTab.classList.remove('text-gray-500');
+        activeTab.classList.add('text-brand-700', 'bg-brand-50', 'border-b-2', 'border-brand-600');
       }
     }
   </script>

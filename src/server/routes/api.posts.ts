@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { updatePostStatus, updatePostCaption, regeneratePost, publishPost, getPostView } from '../../services/pipeline.service';
+import { updatePostStatus, updatePostCaption, regeneratePost, selectCandidate, publishPost, getPostView } from '../../services/pipeline.service';
 
 export function apiPostsRouter(): Router {
   const router = Router();
@@ -65,6 +65,23 @@ export function apiPostsRouter(): Router {
     } catch (error) {
       console.error('[API] Publish failed:', error);
       res.status(500).json({ error: 'Publishing failed' });
+    }
+  });
+
+  router.post('/:id/select-candidate', async (req, res) => {
+    try {
+      const { filename } = req.body;
+      if (!filename || typeof filename !== 'string') {
+        return res.status(400).json({ error: 'filename is required' });
+      }
+      const post = await selectCandidate(req.params.id, filename);
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found, not pending, or candidate not found' });
+      }
+      res.json({ success: true, post });
+    } catch (error) {
+      console.error('[API] Select candidate failed:', error);
+      res.status(500).json({ error: 'Caption generation failed' });
     }
   });
 
