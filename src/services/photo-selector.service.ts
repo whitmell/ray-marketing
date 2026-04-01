@@ -9,9 +9,36 @@ function photoFileExists(filename: string): boolean {
   return fs.existsSync(path.join(config.photosPath, filename));
 }
 
-export function selectNextPhoto(): PhotoCandidate | null {
-  const candidates = loadPhotoCandidates(classifyTheme);
+function parseSearchTerms(searchTerms?: string): string[] {
+  if (!searchTerms || !searchTerms.trim()) return [];
+  return searchTerms
+    .split(',')
+    .map(t => t.trim().toLowerCase())
+    .filter(t => t.length > 0);
+}
+
+function matchesSearchTerms(candidate: PhotoCandidate, terms: string[]): boolean {
+  if (terms.length === 0) return true;
+  const titleLower = candidate.title.toLowerCase();
+  const descLower = candidate.description.toLowerCase();
+  const tagsLower = candidate.tags.map(t => t.toLowerCase());
+
+  return terms.every(term =>
+    titleLower.includes(term) ||
+    descLower.includes(term) ||
+    tagsLower.some(tag => tag.includes(term))
+  );
+}
+
+export function selectNextPhoto(searchTerms?: string): PhotoCandidate | null {
+  const allCandidates = loadPhotoCandidates(classifyTheme);
+  const terms = parseSearchTerms(searchTerms);
+  const candidates = allCandidates.filter(c => matchesSearchTerms(c, terms));
   const posts = readPosts();
+
+  if (terms.length > 0) {
+    console.log(`[PhotoSelector] Search filter "${searchTerms}" matched ${candidates.length}/${allCandidates.length} candidates`);
+  }
 
   // Photos used in pending or approved posts are unavailable
   const usedFilenames = new Set(
@@ -50,9 +77,15 @@ export function selectNextPhoto(): PhotoCandidate | null {
   return pool[index];
 }
 
-export function selectCandidatePhotos(count: number): PhotoCandidate[] {
-  const candidates = loadPhotoCandidates(classifyTheme);
+export function selectCandidatePhotos(count: number, searchTerms?: string): PhotoCandidate[] {
+  const allCandidates = loadPhotoCandidates(classifyTheme);
+  const terms = parseSearchTerms(searchTerms);
+  const candidates = allCandidates.filter(c => matchesSearchTerms(c, terms));
   const posts = readPosts();
+
+  if (terms.length > 0) {
+    console.log(`[PhotoSelector] Search filter "${searchTerms}" matched ${candidates.length}/${allCandidates.length} candidates`);
+  }
 
   const usedFilenames = new Set(
     posts

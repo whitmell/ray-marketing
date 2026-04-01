@@ -39,10 +39,14 @@
       Rejected (<%= stats.rejected %>)
     </a>
   </div>
-  <button onclick="runPipeline(this)"
-          class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors">
-    Generate New Post
-  </button>
+  <div class="flex items-center gap-2">
+    <input id="search-terms-input" type="text" placeholder="Filter: sunset, lighthouse..."
+           class="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 w-48 min-w-0" />
+    <button onclick="runPipeline(this)"
+            class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap">
+      Generate New Post
+    </button>
+  </div>
 </div>
 
 <!-- Post List -->

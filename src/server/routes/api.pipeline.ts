@@ -4,9 +4,10 @@ import { runPipeline } from '../../services/pipeline.service';
 export function apiPipelineRouter(): Router {
   const router = Router();
 
-  router.post('/run', async (_req, res) => {
+  router.post('/run', async (req, res) => {
     try {
-      const post = await runPipeline();
+      const searchTerms = req.body?.searchTerms as string | undefined;
+      const post = await runPipeline(searchTerms);
       if (!post) {
         return res.status(404).json({ error: 'No unused photos available' });
       }

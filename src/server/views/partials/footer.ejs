@@ -81,7 +81,10 @@
       btn.disabled = true;
       btn.textContent = 'Generating...';
       try {
-        await apiAction('/api/pipeline/run');
+        const searchInput = document.getElementById('search-terms-input');
+        const searchTerms = searchInput ? searchInput.value.trim() : '';
+        const body = searchTerms ? { searchTerms } : null;
+        await apiAction('/api/pipeline/run', 'POST', body);
         window.location.href = '/?status=pending';
       } catch {
         btn.disabled = false;

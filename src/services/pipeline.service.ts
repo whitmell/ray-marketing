@@ -8,8 +8,8 @@ import { scorePhotos } from './scoring.service';
 import { uploadPhotoToS3 } from './s3.service';
 import { publishToFacebook, publishToInstagram } from './publish.service';
 
-export async function runPipeline(): Promise<PostView | null> {
-  const candidatePhotos = selectCandidatePhotos(3);
+export async function runPipeline(searchTerms?: string): Promise<PostView | null> {
+  const candidatePhotos = selectCandidatePhotos(3, searchTerms);
   if (candidatePhotos.length === 0) {
     console.log('[Pipeline] No unused photos available');
     return null;
