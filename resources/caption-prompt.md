@@ -72,10 +72,15 @@ If the location is unclear, refer to the region broadly as:
 
 CALL TO ACTION FORMAT
 
-Use a simple line such as:
+Use the following:
 
-Fine art prints available:
+```
+Purchase this print:
 [FineArtAmerica link]
+
+Browse many more photos from Ray at:
+https://fineartamerica.com/profiles/3-ray-matthews
+```
 
 HASHTAGS
 
