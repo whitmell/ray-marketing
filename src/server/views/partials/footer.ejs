@@ -123,6 +123,142 @@
         activeTab.classList.add('text-brand-700', 'bg-brand-50', 'border-b-2', 'border-brand-600');
       }
     }
+
+    let photoPickerAllPhotos = [];
+    let photoPickerBusy = false;
+
+    async function openPhotoPicker() {
+      const modal = document.getElementById('photo-picker-modal');
+      const list = document.getElementById('photo-picker-list');
+      const search = document.getElementById('photo-picker-search');
+      const errBox = document.getElementById('photo-picker-error');
+      errBox.classList.add('hidden');
+      errBox.textContent = '';
+      search.value = '';
+      list.innerHTML = '<div class="text-center text-gray-500 py-12">Loading…</div>';
+      modal.classList.remove('hidden');
+      photoPickerBusy = false;
+
+      try {
+        const res = await fetch('/api/photos');
+        if (!res.ok) throw new Error('Failed to load photos');
+        photoPickerAllPhotos = await res.json();
+        renderPhotoPickerList(photoPickerAllPhotos);
+        search.focus();
+      } catch (err) {
+        list.innerHTML = '';
+        errBox.textContent = 'Error loading photos: ' + err.message;
+        errBox.classList.remove('hidden');
+      }
+    }
+
+    function closePhotoPicker() {
+      if (photoPickerBusy) return;
+      document.getElementById('photo-picker-modal').classList.add('hidden');
+    }
+
+    function renderPhotoPickerList(photos) {
+      const list = document.getElementById('photo-picker-list');
+      if (photos.length === 0) {
+        list.innerHTML = '<div class="text-center text-gray-500 py-12">No photos available.</div>';
+        return;
+      }
+      const rows = photos.map(p => {
+        const usedPill = p.used
+          ? '<span class="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800">in use</span>'
+          : '';
+        const tagsAttr = (p.tags || []).join(' ').toLowerCase().replace(/"/g, '&quot;');
+        const titleAttr = p.title.toLowerCase().replace(/"/g, '&quot;');
+        return `
+          <button type="button"
+                  class="photo-picker-row w-full flex items-center gap-3 p-2 hover:bg-gray-50 rounded-md text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-filename="${p.filename}"
+                  data-title="${titleAttr}"
+                  data-tags="${tagsAttr}"
+                  onclick="pickPhoto('${p.filename}', this)">
+            <img src="/photos/${p.filename}" alt="" class="w-16 h-16 object-cover rounded flex-shrink-0 bg-gray-100" loading="lazy" />
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium text-gray-900 truncate">
+                ${escapeHtml(p.title)}${usedPill}
+              </div>
+              <div class="text-xs text-gray-500 mt-0.5">
+                <span class="inline-block px-1.5 py-0.5 bg-gray-100 rounded">${escapeHtml(p.primaryTheme)}</span>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join('');
+      list.innerHTML = rows;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function filterPhotoPicker(query) {
+      const q = query.trim().toLowerCase();
+      const list = document.getElementById('photo-picker-list');
+      const rows = list.querySelectorAll('.photo-picker-row');
+      let visibleCount = 0;
+      rows.forEach(row => {
+        const title = row.dataset.title || '';
+        const tags = row.dataset.tags || '';
+        const match = q === '' || title.includes(q) || tags.includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visibleCount++;
+      });
+      // Remove any prior "no matches" placeholder
+      const placeholder = list.querySelector('.photo-picker-no-matches');
+      if (placeholder) placeholder.remove();
+      if (visibleCount === 0 && rows.length > 0) {
+        const div = document.createElement('div');
+        div.className = 'photo-picker-no-matches text-center text-gray-500 py-12';
+        div.textContent = 'No matches.';
+        list.appendChild(div);
+      }
+    }
+
+    async function pickPhoto(filename, btn) {
+      if (photoPickerBusy) return;
+      photoPickerBusy = true;
+      const errBox = document.getElementById('photo-picker-error');
+      errBox.classList.add('hidden');
+      errBox.textContent = '';
+
+      // Disable all rows and show inline loading state on the picked one
+      const allRows = document.querySelectorAll('.photo-picker-row');
+      allRows.forEach(r => { r.disabled = true; });
+      const labelEl = btn.querySelector('.text-sm');
+      const originalLabel = labelEl ? labelEl.innerHTML : '';
+      if (labelEl) labelEl.innerHTML = 'Generating caption…';
+
+      try {
+        const res = await fetch('/api/pipeline/pick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        window.location.href = '/?status=pending';
+      } catch (err) {
+        if (labelEl) labelEl.innerHTML = originalLabel;
+        allRows.forEach(r => { r.disabled = false; });
+        errBox.textContent = 'Error: ' + err.message;
+        errBox.classList.remove('hidden');
+        photoPickerBusy = false;
+      }
+    }
+
+    // ESC closes the modal
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('photo-picker-modal');
+        if (modal && !modal.classList.contains('hidden')) closePhotoPicker();
+      }
+    });
   </script>
 </body>
 </html>
