@@ -247,3 +247,42 @@ export async function regeneratePost(postId: string): Promise<PostView | null> {
     faaUrl: photo.faaUrl,
   };
 }
+
+export async function createPostFromPhoto(filename: string): Promise<PostView | null> {
+  const candidates = loadPhotoCandidates(classifyTheme);
+  const photo = candidates.find(c => c.filename === filename);
+  if (!photo) {
+    console.log(`[Pipeline] Manual pick rejected — unknown filename: ${filename}`);
+    return null;
+  }
+
+  const caption = await generateCaption(photo.title, photo.description, photo.faaUrl);
+
+  const post: Post = {
+    id: uuidv4(),
+    photoFilename: photo.filename,
+    caption,
+    status: 'pending',
+    primaryTheme: photo.primaryTheme,
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    notes: null,
+    imageUrl: null,
+    publishedTo: [],
+    candidates: [],
+  };
+
+  const posts = readPosts();
+  posts.push(post);
+  writePosts(posts);
+
+  console.log(`[Pipeline] Created post ${post.id} from manual pick "${photo.title}"`);
+
+  return {
+    ...post,
+    photoTitle: photo.title,
+    photoDescription: photo.description,
+    photoTags: photo.tags,
+    faaUrl: photo.faaUrl,
+  };
+}
