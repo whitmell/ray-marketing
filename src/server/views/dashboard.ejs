@@ -46,6 +46,10 @@
             class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap">
       Generate New Post
     </button>
+    <button onclick="openPhotoPicker()"
+            class="px-4 py-2 text-sm font-medium text-brand-700 bg-white hover:bg-brand-50 border border-brand-600 rounded-md transition-colors whitespace-nowrap">
+      Pick Photo…
+    </button>
   </div>
 </div>
 
@@ -62,5 +66,32 @@
     <%- include('partials/post-card', { post }) %>
   <% } %>
 <% } %>
+
+<!-- Photo Picker Modal -->
+<div id="photo-picker-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+     onclick="if (event.target === this) closePhotoPicker()">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 p-4">
+      <h2 class="text-lg font-semibold text-gray-900">Pick a Photo</h2>
+      <button onclick="closePhotoPicker()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+
+    <!-- Search -->
+    <div class="border-b border-gray-200 p-4">
+      <input id="photo-picker-search" type="text" placeholder="Search by title or tag..."
+             oninput="filterPhotoPicker(this.value)"
+             class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+    </div>
+
+    <!-- Error banner -->
+    <div id="photo-picker-error" class="hidden bg-red-50 border-b border-red-200 px-4 py-2 text-sm text-red-700"></div>
+
+    <!-- List -->
+    <div id="photo-picker-list" class="flex-1 overflow-y-auto p-2">
+      <div class="text-center text-gray-500 py-12">Loading…</div>
+    </div>
+  </div>
+</div>
 
 <%- include('partials/footer') %>
