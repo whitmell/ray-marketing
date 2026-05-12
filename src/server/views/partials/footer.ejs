@@ -164,19 +164,20 @@
         return;
       }
       const rows = photos.map(p => {
+        const fnAttr = escapeHtml(p.filename);
+        const tagsAttr = escapeHtml((p.tags || []).join(' ').toLowerCase());
+        const titleAttr = escapeHtml(p.title.toLowerCase());
         const usedPill = p.used
           ? '<span class="ml-2 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800">in use</span>'
           : '';
-        const tagsAttr = (p.tags || []).join(' ').toLowerCase().replace(/"/g, '&quot;');
-        const titleAttr = p.title.toLowerCase().replace(/"/g, '&quot;');
         return `
           <button type="button"
                   class="photo-picker-row w-full flex items-center gap-3 p-2 hover:bg-gray-50 rounded-md text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  data-filename="${p.filename}"
+                  data-filename="${fnAttr}"
                   data-title="${titleAttr}"
                   data-tags="${tagsAttr}"
-                  onclick="pickPhoto('${p.filename}', this)">
-            <img src="/photos/${p.filename}" alt="" class="w-16 h-16 object-cover rounded flex-shrink-0 bg-gray-100" loading="lazy" />
+                  onclick="pickPhoto(this.dataset.filename, this)">
+            <img src="/photos/${fnAttr}" alt="" class="w-16 h-16 object-cover rounded flex-shrink-0 bg-gray-100" loading="lazy" />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-gray-900 truncate">
                 ${escapeHtml(p.title)}${usedPill}
