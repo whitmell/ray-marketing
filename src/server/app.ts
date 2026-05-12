@@ -5,6 +5,7 @@ import { postsRouter } from './routes/posts';
 import { apiPostsRouter } from './routes/api.posts';
 import { apiPipelineRouter } from './routes/api.pipeline';
 import { apiConfigRouter } from './routes/api.config';
+import { apiPhotosRouter } from './routes/api.photos';
 
 export function createApp(): express.Application {
   const app = express();
@@ -21,6 +22,7 @@ export function createApp(): express.Application {
   app.use('/api/posts', apiPostsRouter());
   app.use('/api/pipeline', apiPipelineRouter());
   app.use('/api/config', apiConfigRouter());
+  app.use('/api/photos', apiPhotosRouter());
 
   return app;
 }
