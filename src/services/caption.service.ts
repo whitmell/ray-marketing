@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import fs from 'fs';
-import path from 'path';
 import { config } from '../config';
+import { getResourceText } from '../data/s3-resources';
 
 let client: Anthropic | null = null;
 let promptTemplate: string | null = null;
@@ -13,12 +12,9 @@ function getClient(): Anthropic {
   return client;
 }
 
-function getPromptTemplate(): string {
+async function getPromptTemplate(): Promise<string> {
   if (!promptTemplate) {
-    promptTemplate = fs.readFileSync(
-      path.join(config.resourcesPath, 'caption-prompt.md'),
-      'utf-8'
-    );
+    promptTemplate = await getResourceText('caption-prompt.md');
   }
   return promptTemplate;
 }
@@ -37,7 +33,7 @@ export async function generateCaption(
   const response = await getClient().messages.create({
     model: config.claudeModel,
     max_tokens: 1024,
-    system: getPromptTemplate(),
+    system: await getPromptTemplate(),
     messages: [{ role: 'user', content: userMessage }],
   });
 
