@@ -44,13 +44,19 @@ Write-FrontendConfig $outputs
 Publish-Lambdas $outputs
 
 # Create the Cognito user if it does not exist yet
+$prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
 & aws cognito-idp admin-get-user --user-pool-id $outputs.CognitoUserPoolId --username $env:COGNITO_USER_EMAIL *> $null
-if ($LASTEXITCODE -ne 0) {
-    $chars = (48..57) + (65..90) + (97..122)
-    $temp = (-join ($chars | Get-Random -Count 16 | ForEach-Object { [char]$_ })) + '-Aa1!'
-    Invoke-Aws cognito-idp admin-create-user --user-pool-id $outputs.CognitoUserPoolId --username $env:COGNITO_USER_EMAIL `
+$userExists = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = $prevEAP
+if (-not $userExists) {
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $bytes = [byte[]]::new(16)
+    $rng.GetBytes($bytes)
+    $temp = [Convert]::ToBase64String($bytes).Substring(0, 16) + '-Aa1!'
+    & aws cognito-idp admin-create-user --user-pool-id $outputs.CognitoUserPoolId --username $env:COGNITO_USER_EMAIL `
         --user-attributes "Name=email,Value=$($env:COGNITO_USER_EMAIL)" 'Name=email_verified,Value=true' `
         --temporary-password $temp --desired-delivery-mediums EMAIL | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to create Cognito user' }
     Write-Host "Cognito user created; a temporary password was emailed to $($env:COGNITO_USER_EMAIL)."
 } else {
     Write-Host 'Cognito user already exists.'

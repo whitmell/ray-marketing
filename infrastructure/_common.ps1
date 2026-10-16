@@ -5,7 +5,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 # Load .env from the project root into process environment variables
 $envFile = Join-Path $ProjectRoot '.env'
 if (Test-Path $envFile) {
-    Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([^#][^=]+)=(.*)$') { [System.Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), 'Process') } }
+    Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([^#\s][^=]*)=(.*)$') { [System.Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), 'Process') } }
 }
 
 $Region = if ($env:AWS_REGION) { $env:AWS_REGION } else { 'us-east-1' }
@@ -15,7 +15,10 @@ $env:AWS_DEFAULT_REGION = $Region
 
 function Invoke-Aws {
     & aws @args
-    if ($LASTEXITCODE -ne 0) { throw "aws $($args -join ' ') failed (exit $LASTEXITCODE)" }
+    if ($LASTEXITCODE -ne 0) {
+        $cmd = if ($args.Count -ge 2) { "$($args[0]) $($args[1])" } else { "$($args[0])" }
+        throw "aws $cmd failed (exit $LASTEXITCODE)"
+    }
 }
 
 function Get-StackOutputs {

@@ -50,6 +50,16 @@ function Write-Batch($Table, $Items) {
     }
 }
 
+$countJson = & aws dynamodb scan --table-name $PostsTable --select COUNT --output json
+if ($LASTEXITCODE -eq 0) {
+    $count = ($countJson | ConvertFrom-Json).Count
+    if ($count -gt 0) {
+        Write-Host "Posts table already has $count items. Use -Force to overwrite."
+        if (-not ($args -contains '-Force')) { exit 1 }
+        Write-Host 'Proceeding with -Force...'
+    }
+}
+
 $posts = Get-Content (Join-Path $ProjectRoot 'data\posts.json') -Raw | ConvertFrom-Json
 $items = @()
 foreach ($post in $posts) {
