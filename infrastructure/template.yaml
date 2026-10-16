@@ -181,7 +181,14 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: dynamodb:*
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
                 Resource:
                   - !GetAtt PostsTable.Arn
                   - !Sub '${PostsTable.Arn}/index/*'
@@ -240,6 +247,8 @@ Resources:
           RESOURCES_BUCKET: !Ref ResourcesBucket
           DYNAMODB_TABLE_POSTS: !Ref PostsTable
           DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       # Placeholder only; the deploy script uploads the real bundle.
       Code:
         ZipFile: |
@@ -271,6 +280,8 @@ Resources:
           RESOURCES_BUCKET: !Ref ResourcesBucket
           DYNAMODB_TABLE_POSTS: !Ref PostsTable
           DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       # Placeholder only; the deploy script uploads the real bundle.
       Code:
         ZipFile: |
@@ -444,6 +455,8 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+              # 60s is the CloudFront max without a quota increase; Lambda timeout is 120s.
+              # Request a quota increase if scoring regularly exceeds 60s.
               OriginReadTimeout: 60
           - Id: photos-s3
             DomainName: !Sub '${PhotosBucket}.s3.${AWS::Region}.amazonaws.com'

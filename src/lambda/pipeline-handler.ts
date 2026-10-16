@@ -1,7 +1,23 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { runPipeline, createPostFromPhoto } from '../services/pipeline.service';
 
 type JsonResult = Exclude<APIGatewayProxyResultV2, string>;
+
+let verifier: ReturnType<typeof createVerifier> | null = null;
+
+function createVerifier() {
+  return CognitoJwtVerifier.create({
+    userPoolId: process.env.COGNITO_USER_POOL_ID!,
+    tokenUse: 'id',
+    clientId: process.env.COGNITO_CLIENT_ID!,
+  });
+}
+
+function getVerifier() {
+  if (!verifier) verifier = createVerifier();
+  return verifier;
+}
 
 function respond(statusCode: number, body: unknown): JsonResult {
   return {
@@ -19,6 +35,16 @@ function parseBody(raw: string | undefined, isBase64: boolean): Record<string, u
 }
 
 export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  const authHeader = event.headers?.authorization || event.headers?.Authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return respond(401, { error: 'Unauthorized' });
+  }
+  try {
+    await getVerifier().verify(authHeader.slice(7));
+  } catch {
+    return respond(401, { error: 'Invalid token' });
+  }
+
   try {
     const path = event.rawPath.length > 1 ? event.rawPath.replace(/\/+$/, '') : event.rawPath;
     const body = parseBody(event.body, event.isBase64Encoded);
