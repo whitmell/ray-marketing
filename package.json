@@ -2,12 +2,9 @@
   "name": "ray-matthews-marketing-pipeline",
   "version": "1.0.0",
   "description": "Automated marketing pipeline for Ray Matthews fine art photography",
-  "main": "dist/index.js",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "build:lambda": "node esbuild.config.mjs",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts"
+    "build:lambda": "node esbuild.config.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -16,20 +13,13 @@
     "@aws-sdk/lib-dynamodb": "^3.1152.0",
     "@google/generative-ai": "^0.24.1",
     "aws-jwt-verify": "^5.2.1",
-    "dotenv": "^16.4.0",
-    "ejs": "^3.1.10",
-    "express": "^4.21.0",
-    "node-cron": "^3.0.3",
     "openai": "^6.29.0",
     "sharp": "^0.34.5",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.164",
-    "@types/ejs": "^3.1.0",
-    "@types/express": "^4.17.0",
     "@types/node": "^22.0.0",
-    "@types/node-cron": "^3.0.0",
     "@types/sharp": "^0.31.1",
     "@types/uuid": "^10.0.0",
     "esbuild": "^0.28.2",
