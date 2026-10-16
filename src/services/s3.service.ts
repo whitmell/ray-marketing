@@ -25,7 +25,9 @@ export async function uploadPhotoToS3(photoFilename: string): Promise<string> {
 
   await getClient().send(command);
 
-  const imageUrl = `https://${config.photosBucket}.s3.${config.awsRegion}.amazonaws.com/${s3Key}`;
+  const imageUrl = config.domainName
+    ? `https://${config.domainName}/photos/${encodeURIComponent(photoFilename)}`
+    : `https://${config.photosBucket}.s3.${config.awsRegion}.amazonaws.com/${s3Key}`;
   console.log(`[S3] Uploaded ${photoFilename} → ${imageUrl}`);
   return imageUrl;
 }

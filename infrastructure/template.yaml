@@ -247,6 +247,7 @@ Resources:
           RESOURCES_BUCKET: !Ref ResourcesBucket
           DYNAMODB_TABLE_POSTS: !Ref PostsTable
           DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          DOMAIN_NAME: !Ref DomainName
           COGNITO_USER_POOL_ID: !Ref CognitoUserPool
           COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       # Placeholder only; the deploy script uploads the real bundle.
@@ -280,6 +281,7 @@ Resources:
           RESOURCES_BUCKET: !Ref ResourcesBucket
           DYNAMODB_TABLE_POSTS: !Ref PostsTable
           DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          DOMAIN_NAME: !Ref DomainName
           COGNITO_USER_POOL_ID: !Ref CognitoUserPool
           COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
       # Placeholder only; the deploy script uploads the real bundle.

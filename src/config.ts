@@ -5,9 +5,9 @@ export const config = {
 
   // Scoring LLMs
   openaiApiKey: process.env.OPENAI_API_KEY || '',
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 
   // AWS
   awsRegion: process.env.AWS_REGION || 'us-east-1',
@@ -16,6 +16,7 @@ export const config = {
   resourcesBucket: process.env.RESOURCES_BUCKET || '',
   dynamoTablePosts: process.env.DYNAMODB_TABLE_POSTS || 'ray-marketing-posts',
   dynamoTableConfig: process.env.DYNAMODB_TABLE_CONFIG || 'ray-marketing-config',
+  domainName: process.env.DOMAIN_NAME || '',
 
   // Meta Graph API
   metaPageAccessToken: process.env.META_PAGE_ACCESS_TOKEN || '',
