@@ -1,0 +1,46 @@
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import { runPipeline, createPostFromPhoto } from '../services/pipeline.service';
+
+type JsonResult = Exclude<APIGatewayProxyResultV2, string>;
+
+function respond(statusCode: number, body: unknown): JsonResult {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
+function parseBody(raw: string | undefined, isBase64: boolean): Record<string, unknown> {
+  if (!raw) return {};
+  const text = isBase64 ? Buffer.from(raw, 'base64').toString('utf-8') : raw;
+  const parsed: unknown = JSON.parse(text);
+  return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+}
+
+export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
+  try {
+    const path = event.rawPath.length > 1 ? event.rawPath.replace(/\/+$/, '') : event.rawPath;
+    const body = parseBody(event.body, event.isBase64Encoded);
+
+    if (path === '/api/pipeline/run') {
+      const searchTerms = typeof body.searchTerms === 'string' ? body.searchTerms : undefined;
+      const view = await runPipeline(searchTerms);
+      return view ? respond(200, view) : respond(404, { error: 'No unused photos available' });
+    }
+
+    if (path === '/api/pipeline/pick') {
+      if (typeof body.filename !== 'string' || !body.filename) {
+        return respond(400, { error: 'filename is required' });
+      }
+      const view = await createPostFromPhoto(body.filename);
+      return view ? respond(200, view) : respond(404, { error: 'Photo not found' });
+    }
+
+    return respond(404, { error: 'Not found' });
+  } catch (err) {
+    if (err instanceof SyntaxError) return respond(400, { error: 'Invalid JSON body' });
+    console.error('[Pipeline] Handler error:', err);
+    return respond(500, { error: err instanceof Error ? err.message : 'Internal server error' });
+  }
+}
