@@ -72,8 +72,13 @@
 
   async function handleCallback() {
     var params = new URLSearchParams(window.location.search);
+    var error = params.get('error');
+    if (error) {
+      history.replaceState({}, '', '/');
+      return { ok: false, error: params.get('error_description') || error };
+    }
     var code = params.get('code');
-    if (!code) return false;
+    if (!code) return null;
     var verifier = sessionStorage.getItem('pkce_verifier');
     sessionStorage.removeItem('pkce_verifier');
     var returnTo = sessionStorage.getItem('post_login_path') || '/';
@@ -92,10 +97,10 @@
       console.error('[Auth] Callback failed:', err);
       clearTokens();
       history.replaceState({}, '', '/');
-      return false;
+      return { ok: false, error: err.message || 'Authentication failed' };
     }
     history.replaceState({}, '', returnTo === '/index.html' ? '/' : returnTo);
-    return true;
+    return { ok: true };
   }
 
   async function refreshTokens() {
@@ -149,9 +154,12 @@
 
   async function apiJson(path, options, base) {
     var res = await apiFetch(path, options, base);
-    if (res.status === 404) return null;
     var data = null;
     try { data = await res.json(); } catch (e) { /* empty body */ }
+    if (res.status === 404 && (!options || !options.allow404)) {
+      throw new Error((data && data.error) || 'Not found');
+    }
+    if (res.status === 404) return null;
     if (!res.ok) {
       throw new Error((data && (data.error || data.message)) || 'Request failed (' + res.status + ')');
     }
@@ -356,8 +364,8 @@
 
   async function renderDashboard(tab) {
     var results = await Promise.all([
-      apiJson('/api/photos'),
-      tab === 'current' ? apiJson('/api/posts/current') : apiJson('/api/posts?status=posted')
+      apiJson('/api/photos', { allow404: true }),
+      tab === 'current' ? apiJson('/api/posts/current', { allow404: true }) : apiJson('/api/posts?status=posted', { allow404: true })
     ]);
     var photos = Array.isArray(results[0]) ? results[0] : ((results[0] && results[0].photos) || []);
     var data = results[1];
@@ -686,7 +694,7 @@
   // ---------------------------------------------------------------------------
 
   async function renderPostDetail(id) {
-    var post = await apiJson('/api/posts/' + encodeURIComponent(id));
+    var post = await apiJson('/api/posts/' + encodeURIComponent(id), { allow404: true });
     if (!post) {
       mount([h('div', { class: 'text-center py-12' }, [
         h('h2', { class: 'text-xl font-semibold text-gray-900 mb-2', text: 'Post not found' }),
@@ -828,7 +836,7 @@
     list.appendChild(h('p', { class: 'p-4 text-sm text-gray-500', text: 'Loading photos...' }));
     document.getElementById('photo-picker-search').value = '';
     try {
-      var data = await apiJson('/api/photos');
+      var data = await apiJson('/api/photos', { allow404: true });
       pickerPhotos = Array.isArray(data) ? data : ((data && data.photos) || []);
       filterPhotoPicker();
       document.getElementById('photo-picker-search').focus();
@@ -887,10 +895,24 @@
       mount([h('p', { class: 'text-red-600 text-sm', text: 'Missing configuration (config.js).' })]);
       return;
     }
-    if (window.location.search.indexOf('code=') !== -1) {
-      await handleCallback();
+    if (window.location.search.indexOf('code=') !== -1 || window.location.search.indexOf('error=') !== -1) {
+      var result = await handleCallback();
+      if (result && !result.ok) {
+        mount([
+          h('div', { class: 'bg-red-50 border border-red-200 rounded-lg p-6 text-center' }, [
+            h('p', { class: 'text-red-700 font-medium', text: 'Sign-in failed' }),
+            h('p', { class: 'text-red-600 text-sm mt-1', text: result.error }),
+            h('button', {
+              class: 'mt-4 px-4 py-2 bg-brand-600 text-white rounded-md hover:bg-brand-700',
+              text: 'Try again',
+              onclick: function () { login(); }
+            })
+          ])
+        ]);
+        return;
+      }
     }
-    var token = await getIdToken(); // redirects to login if no valid session
+    var token = await getIdToken();
     if (!token) return;
     await render();
   }
