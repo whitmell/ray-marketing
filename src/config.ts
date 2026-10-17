@@ -5,9 +5,9 @@ export const config = {
 
   // Scoring LLMs
   openaiApiKey: process.env.OPENAI_API_KEY || '',
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o',
+  openaiModel: process.env.OPENAI_MODEL || 'gpt-5.4',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
 
   // AWS
   awsRegion: process.env.AWS_REGION || 'us-east-1',

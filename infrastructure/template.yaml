@@ -31,13 +31,13 @@ Parameters:
     NoEcho: true
   OpenaiModel:
     Type: String
-    Default: gpt-4o
+    Default: gpt-5.4
   GeminiApiKey:
     Type: String
     NoEcho: true
   GeminiModel:
     Type: String
-    Default: gemini-2.5-flash
+    Default: gemini-3.5-flash
   MetaPageAccessToken:
     Type: String
     NoEcho: true
