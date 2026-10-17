@@ -6,6 +6,7 @@ $ConfigTable = 'ray-marketing-config'
 function ConvertTo-DdbValue($v) {
     if ($null -eq $v) { return @{ NULL = $true } }
     if ($v -is [bool]) { return @{ BOOL = $v } }
+    if ($v -is [datetime]) { return @{ S = $v.ToUniversalTime().ToString('o') } }
     if ($v -is [string]) { return @{ S = $v } }
     if ($v -is [int] -or $v -is [long] -or $v -is [double] -or $v -is [decimal]) {
         return @{ N = [string]::Format([System.Globalization.CultureInfo]::InvariantCulture, '{0}', $v) }
