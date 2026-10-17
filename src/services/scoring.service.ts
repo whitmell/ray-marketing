@@ -1,10 +1,9 @@
-import fs from 'fs';
-import path from 'path';
 import sharp from 'sharp';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config';
+import { getPhotoBuffer } from '../data/s3-resources';
 import type {
   PhotoCandidate,
   ScoringCandidate,
@@ -42,8 +41,8 @@ const MAX_IMAGE_DIMENSION = 1024;
 const IMAGE_QUALITY = 80;
 
 async function loadImageBase64(filename: string): Promise<{ base64: string; mimeType: string }> {
-  const filePath = path.join(config.photosPath, filename);
-  const resized = await sharp(filePath)
+  const buffer = await getPhotoBuffer(filename);
+  const resized = await sharp(buffer)
     .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: IMAGE_QUALITY })
     .toBuffer();

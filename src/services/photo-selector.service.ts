@@ -1,13 +1,7 @@
-import fs from 'fs';
-import path from 'path';
 import type { PhotoCandidate, ThemeCategory } from '../data/types';
-import { readPosts, loadPhotoCandidates } from '../data/store';
+import { loadPhotoCandidates } from '../data/s3-resources';
+import { readPosts, readAppConfig } from '../data/dynamodb';
 import { classifyTheme } from './theme.service';
-import { config } from '../config';
-
-function photoFileExists(filename: string): boolean {
-  return fs.existsSync(path.join(config.photosPath, filename));
-}
 
 function parseSearchTerms(searchTerms?: string): string[] {
   if (!searchTerms || !searchTerms.trim()) return [];
@@ -30,20 +24,21 @@ function matchesSearchTerms(candidate: PhotoCandidate, terms: string[]): boolean
   );
 }
 
-export function selectNextPhoto(searchTerms?: string): PhotoCandidate | null {
-  const allCandidates = loadPhotoCandidates(classifyTheme);
+export async function selectNextPhoto(searchTerms?: string): Promise<PhotoCandidate | null> {
+  const allCandidates = await loadPhotoCandidates(classifyTheme);
   const terms = parseSearchTerms(searchTerms);
   const candidates = allCandidates.filter(c => matchesSearchTerms(c, terms));
-  const posts = readPosts();
+  const posts = await readPosts();
+  const { themeLookback } = await readAppConfig();
 
   if (terms.length > 0) {
     console.log(`[PhotoSelector] Search filter "${searchTerms}" matched ${candidates.length}/${allCandidates.length} candidates`);
   }
 
-  // Photos used in pending or approved posts are unavailable
+  // Only posted photos are considered used
   const usedFilenames = new Set(
     posts
-      .filter(p => p.status === 'pending' || p.status === 'approved')
+      .filter(p => p.status === 'posted')
       .map(p => p.photoFilename)
   );
 
@@ -55,7 +50,7 @@ export function selectNextPhoto(searchTerms?: string): PhotoCandidate | null {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   const recentThemes = sortedPosts
-    .slice(0, config.themeLookback)
+    .slice(0, themeLookback)
     .map(p => p.primaryTheme);
   const excludedThemes = new Set<ThemeCategory>(recentThemes);
 
@@ -77,11 +72,12 @@ export function selectNextPhoto(searchTerms?: string): PhotoCandidate | null {
   return pool[index];
 }
 
-export function selectCandidatePhotos(count: number, searchTerms?: string): PhotoCandidate[] {
-  const allCandidates = loadPhotoCandidates(classifyTheme);
+export async function selectCandidatePhotos(count: number, searchTerms?: string): Promise<PhotoCandidate[]> {
+  const allCandidates = await loadPhotoCandidates(classifyTheme);
   const terms = parseSearchTerms(searchTerms);
   const candidates = allCandidates.filter(c => matchesSearchTerms(c, terms));
-  const posts = readPosts();
+  const posts = await readPosts();
+  const { themeLookback } = await readAppConfig();
 
   if (terms.length > 0) {
     console.log(`[PhotoSelector] Search filter "${searchTerms}" matched ${candidates.length}/${allCandidates.length} candidates`);
@@ -89,7 +85,7 @@ export function selectCandidatePhotos(count: number, searchTerms?: string): Phot
 
   const usedFilenames = new Set(
     posts
-      .filter(p => p.status === 'pending' || p.status === 'approved')
+      .filter(p => p.status === 'posted')
       .map(p => p.photoFilename)
   );
 
@@ -100,7 +96,7 @@ export function selectCandidatePhotos(count: number, searchTerms?: string): Phot
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   const recentThemes = sortedPosts
-    .slice(0, config.themeLookback)
+    .slice(0, themeLookback)
     .map(p => p.primaryTheme);
   const excludedThemes = new Set<ThemeCategory>(recentThemes);
 
@@ -114,16 +110,6 @@ export function selectCandidatePhotos(count: number, searchTerms?: string): Phot
     pool = unused;
   }
 
-  // Shuffle and pick candidates that have image files on disk
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  const selected: PhotoCandidate[] = [];
-  for (const candidate of shuffled) {
-    if (selected.length >= count) break;
-    if (photoFileExists(candidate.filename)) {
-      selected.push(candidate);
-    } else {
-      console.warn(`[PhotoSelector] Image file missing for "${candidate.filename}", skipping`);
-    }
-  }
-  return selected;
+  return shuffled.slice(0, count);
 }

@@ -1,0 +1,586 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ray Matthews Marketing Pipeline - serverless stack (Cognito, DynamoDB, S3, Lambda, API Gateway, CloudFront, Route 53). Deploy in us-east-1 (CloudFront requires the ACM certificate there).
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: marketing.raymatthews.com
+    Description: Custom domain served by CloudFront
+  HostedZoneId:
+    Type: String
+    Description: Route 53 hosted zone ID that contains DomainName
+  PhotosBucket:
+    Type: String
+    Default: ray-faa-images
+    Description: Existing S3 bucket holding the photos (not managed by this stack)
+  CognitoUserEmail:
+    Type: String
+    Description: Email of the single dashboard user (the deploy script creates the Cognito user with this address)
+  ResourcesBucketName:
+    Type: String
+    Default: ''
+    Description: Name for the resources bucket. Leave empty to auto-generate from the stack name and account ID.
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+  ClaudeModel:
+    Type: String
+    Default: claude-sonnet-4-20250514
+  OpenaiApiKey:
+    Type: String
+    NoEcho: true
+  OpenaiModel:
+    Type: String
+    Default: gpt-4o
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+  GeminiModel:
+    Type: String
+    Default: gemini-2.5-flash
+  MetaPageAccessToken:
+    Type: String
+    NoEcho: true
+  FacebookPageId:
+    Type: String
+  InstagramUserId:
+    Type: String
+  MetaApiVersion:
+    Type: String
+    Default: v21.0
+
+Conditions:
+  GenerateResourcesBucketName: !Equals [!Ref ResourcesBucketName, '']
+
+Resources:
+  # ---------------------------------------------------------------- Cognito
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ray-marketing-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: false
+          RequireUppercase: false
+          RequireNumbers: false
+          RequireSymbols: false
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ray-marketing-spa
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs:
+        - !Sub 'https://${DomainName}/'
+      LogoutURLs:
+        - !Sub 'https://${DomainName}/'
+      SupportedIdentityProviders:
+        - COGNITO
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: ray-marketing
+      UserPoolId: !Ref CognitoUserPool
+
+  # --------------------------------------------------------------- DynamoDB
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ray-marketing-posts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ray-marketing-config
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: key
+          KeyType: HASH
+
+  # --------------------------------------------------------------------- S3
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'ray-marketing-frontend-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ResourcesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If
+        - GenerateResourcesBucketName
+        - !Sub '${AWS::StackName}-resources-${AWS::AccountId}'
+        - !Ref ResourcesBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ----------------------------------------------------------------- Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${AWS::StackName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDbAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt PostsTable.Arn
+                  - !Sub '${PostsTable.Arn}/index/*'
+                  - !GetAtt ConfigTable.Arn
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${PhotosBucket}'
+                  - !Sub 'arn:aws:s3:::${PhotosBucket}/*'
+                  - !GetAtt ResourcesBucket.Arn
+                  - !Sub '${ResourcesBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub 'arn:aws:s3:::${PhotosBucket}/published/*'
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
+
+  ApiLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-api'
+      Runtime: nodejs22.x
+      Handler: api-handler.handler
+      MemorySize: 256
+      Timeout: 29
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          CLAUDE_MODEL: !Ref ClaudeModel
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+          OPENAI_MODEL: !Ref OpenaiModel
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          META_PAGE_ACCESS_TOKEN: !Ref MetaPageAccessToken
+          FACEBOOK_PAGE_ID: !Ref FacebookPageId
+          INSTAGRAM_USER_ID: !Ref InstagramUserId
+          META_API_VERSION: !Ref MetaApiVersion
+          PHOTOS_BUCKET: !Ref PhotosBucket
+          S3_BUCKET: !Ref PhotosBucket
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          DYNAMODB_TABLE_POSTS: !Ref PostsTable
+          DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          DOMAIN_NAME: !Ref DomainName
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+      # Placeholder only; the deploy script uploads the real bundle.
+      Code:
+        ZipFile: |
+          exports.handler = async () => ({ statusCode: 200, body: 'Placeholder' });
+
+  PipelineLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-pipeline'
+      Runtime: nodejs22.x
+      Handler: pipeline-handler.handler
+      MemorySize: 512
+      Timeout: 120
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          CLAUDE_MODEL: !Ref ClaudeModel
+          OPENAI_API_KEY: !Ref OpenaiApiKey
+          OPENAI_MODEL: !Ref OpenaiModel
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          META_PAGE_ACCESS_TOKEN: !Ref MetaPageAccessToken
+          FACEBOOK_PAGE_ID: !Ref FacebookPageId
+          INSTAGRAM_USER_ID: !Ref InstagramUserId
+          META_API_VERSION: !Ref MetaApiVersion
+          PHOTOS_BUCKET: !Ref PhotosBucket
+          S3_BUCKET: !Ref PhotosBucket
+          RESOURCES_BUCKET: !Ref ResourcesBucket
+          DYNAMODB_TABLE_POSTS: !Ref PostsTable
+          DYNAMODB_TABLE_CONFIG: !Ref ConfigTable
+          DOMAIN_NAME: !Ref DomainName
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+      # Placeholder only; the deploy script uploads the real bundle.
+      Code:
+        ZipFile: |
+          exports.handler = async () => ({ statusCode: 200, body: 'Placeholder' });
+
+  PipelineLambdaUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt PipelineLambda.Arn
+      AuthType: NONE
+      Cors:
+        AllowOrigins:
+          - !Sub 'https://${DomainName}'
+        AllowMethods:
+          - POST
+        AllowHeaders:
+          - authorization
+          - content-type
+
+  PipelineLambdaUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PipelineLambda
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  # Newer Lambda Function URLs also require lambda:InvokeFunction (scoped to URL invocations).
+  PipelineLambdaUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PipelineLambda
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+  # ------------------------------------------------------------ API Gateway
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ray-marketing-api
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: ray-marketing-cognito
+      RestApiId: !Ref ApiGateway
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: api
+
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !Ref ApiResource
+      PathPart: '{proxy+}'
+
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambda.Arn}/invocations'
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiProxyMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ApiGateway
+      DeploymentId: !Ref ApiDeployment
+      StageName: prod
+
+  ApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/*/*'
+
+  # ------------------------------------------------------------- CloudFront
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZoneId
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # The photos bucket stores keys without a "photos/" prefix, so strip it from the request URI.
+  PhotosRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-photos-rewrite'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Strip the /photos prefix before forwarding to the photos bucket
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.uri = request.uri.replace(/^\/photos/, '') || '/';
+          return request;
+        }
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Ray Matthews marketing pipeline
+        Aliases:
+          - !Ref DomainName
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: frontend-s3
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api-gateway
+            DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: /prod
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+          - Id: pipeline-lambda-url
+            DomainName: !Select [2, !Split ['/', !GetAtt PipelineLambdaUrl.FunctionUrl]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+              # 60s is the CloudFront max without a quota increase; Lambda timeout is 120s.
+              # Request a quota increase if scoring regularly exceeds 60s.
+              OriginReadTimeout: 60
+          - Id: photos-s3
+            DomainName: !Sub '${PhotosBucket}.s3.${AWS::Region}.amazonaws.com'
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: frontend-s3
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed policy: CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        # Order matters: /api/pipeline/* must come before /api/*
+        CacheBehaviors:
+          - PathPattern: /api/pipeline/*
+            TargetOriginId: pipeline-lambda-url
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            # Managed policy: CachingDisabled
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # Managed policy: AllViewerExceptHostHeader (forwards Authorization, sets Host to origin)
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          - PathPattern: /api/*
+            TargetOriginId: api-gateway
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          - PathPattern: /photos/*
+            TargetOriginId: photos-s3
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            # Managed policy: CachingOptimized (up to 1 year max TTL)
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt PhotosRewriteFunction.FunctionMetadata.FunctionARN
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # NOTE: this replaces any existing bucket policy on the photos bucket.
+  PhotosBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PhotosBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub 'arn:aws:s3:::${PhotosBucket}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # ---------------------------------------------------------------- Route 53
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        # Fixed hosted zone ID for all CloudFront distributions
+        HostedZoneId: Z2FDTNDATAQYW2
+
+Outputs:
+  CloudFrontDomainName:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  ApiGatewayUrl:
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+  CognitoUserPoolId:
+    Value: !Ref CognitoUserPool
+  CognitoClientId:
+    Value: !Ref CognitoUserPoolClient
+  CognitoDomain:
+    Value: !Sub '${CognitoUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+  ResourcesBucketName:
+    Value: !Ref ResourcesBucket
+  PipelineFunctionUrl:
+    Value: !GetAtt PipelineLambdaUrl.FunctionUrl
+  CloudFrontDistributionId:
+    Value: !Ref CloudFrontDistribution
+  ApiLambdaName:
+    Value: !Ref ApiLambda
+  PipelineLambdaName:
+    Value: !Ref PipelineLambda
