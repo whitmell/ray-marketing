@@ -10,5 +10,5 @@ await esbuild.build({
   platform: 'node',
   target: 'node22',
   format: 'cjs',
-  external: ['@aws-sdk/*'],
+  external: ['@aws-sdk/*', 'sharp'],
 });
