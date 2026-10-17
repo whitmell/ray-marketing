@@ -261,7 +261,7 @@ Resources:
       FunctionName: !Sub '${AWS::StackName}-pipeline'
       Runtime: nodejs22.x
       Handler: pipeline-handler.handler
-      MemorySize: 512
+      MemorySize: 1024
       Timeout: 120
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
