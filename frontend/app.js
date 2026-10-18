@@ -748,21 +748,42 @@
       try { data = await res.json(); } catch (e) { /* ignore */ }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Pick failed (' + res.status + ')');
       closePhotoPicker();
-      await navigateTo('/');
+      if (data && data.id) {
+        await navigateTo('/posts/' + encodeURIComponent(data.id));
+      } else {
+        await navigateTo('/');
+      }
     });
+  }
+
+  function replaceDraftCard(post) {
+    var app = document.getElementById('app');
+    var oldCards = app.querySelectorAll('.bg-white.rounded-lg.shadow-sm');
+    var lastCard = oldCards.length > 0 ? oldCards[oldCards.length - 1] : null;
+    var newCard = draftCard(post);
+    if (lastCard) {
+      lastCard.replaceWith(newCard);
+    } else {
+      app.appendChild(newCard);
+    }
   }
 
   function selectCandidate(postId, filename, btn) {
     return withButton(btn, 'Selecting...', async function () {
-      await apiJson('/api/posts/' + encodeURIComponent(postId) + '/select-photo', Object.assign({ method: 'POST' }, jsonBody({ filename: filename })));
-      await render();
+      var post = await apiJson('/api/posts/' + encodeURIComponent(postId) + '/select-photo', Object.assign({ method: 'POST' }, jsonBody({ filename: filename })));
+      if (post) replaceDraftCard(post);
     });
   }
 
   function generateCaption(postId, btn) {
     return withButton(btn, 'Generating...', async function () {
-      await apiJson('/api/posts/' + encodeURIComponent(postId) + '/generate-caption', { method: 'POST' });
-      await render();
+      var post = await apiJson('/api/posts/' + encodeURIComponent(postId) + '/generate-caption', { method: 'POST' });
+      if (post) {
+        var block = document.getElementById('caption-block-' + postId);
+        if (block) {
+          block.replaceWith(captionSection(post, false));
+        }
+      }
     });
   }
 
@@ -792,8 +813,13 @@
   function saveCaption(id, btn) {
     var caption = document.getElementById('caption-textarea-' + id).value;
     return withButton(btn, 'Saving...', async function () {
-      await apiJson('/api/posts/' + encodeURIComponent(id) + '/caption', Object.assign({ method: 'PUT' }, jsonBody({ caption: caption })));
-      await render();
+      var post = await apiJson('/api/posts/' + encodeURIComponent(id) + '/caption', Object.assign({ method: 'PUT' }, jsonBody({ caption: caption })));
+      if (post) {
+        var block = document.getElementById('caption-block-' + id);
+        if (block) {
+          block.replaceWith(captionSection(post, false));
+        }
+      }
     });
   }
 
@@ -808,8 +834,8 @@
       return Promise.resolve();
     }
     return withButton(btn, 'Posting...', async function () {
-      await apiJson('/api/posts/' + encodeURIComponent(postId) + '/post', Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })));
-      await navigateTo('/posted');
+      var post = await apiJson('/api/posts/' + encodeURIComponent(postId) + '/post', Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })));
+      if (post) replaceDraftCard(post);
     });
   }
 
