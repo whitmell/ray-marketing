@@ -733,7 +733,11 @@
       var data = null;
       try { data = await res.json(); } catch (e) { /* ignore */ }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Pipeline failed (' + res.status + ')');
-      await navigateTo('/');
+      if (data && data.id) {
+        await navigateTo('/posts/' + encodeURIComponent(data.id));
+      } else {
+        await navigateTo('/');
+      }
     });
   }
 

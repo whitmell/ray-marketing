@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { runPipeline, createPostFromPhoto } from '../services/pipeline.service';
+import { runPipeline, createPostFromPhoto, UserInputError } from '../services/pipeline.service';
 
 type JsonResult = Exclude<APIGatewayProxyResultV2, string>;
 
@@ -66,6 +66,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     return respond(404, { error: 'Not found' });
   } catch (err) {
     if (err instanceof SyntaxError) return respond(400, { error: 'Invalid JSON body' });
+    if (err instanceof UserInputError) return respond(422, { error: err.message });
     console.error('[Pipeline] Handler error:', err);
     return respond(500, { error: err instanceof Error ? err.message : 'Internal server error' });
   }

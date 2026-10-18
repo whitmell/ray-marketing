@@ -75,11 +75,11 @@ export async function selectNextPhoto(searchTerms?: string): Promise<PhotoCandid
   let pool = allCandidates.filter(c => !usedFilenames.has(c.filename));
   if (pool.length === 0) return null;
 
-  // When search terms are provided, require at least one match (OR logic)
   if (terms.length > 0) {
     const matched = pool.filter(c => countMatchingTerms(c, terms) > 0);
     console.log(`[PhotoSelector] Search "${searchTerms}" matched ${matched.length}/${pool.length} unused candidates`);
-    if (matched.length > 0) pool = matched;
+    if (matched.length === 0) return null;
+    pool = matched;
   }
 
   const sortedPosts = [...posts].sort(
@@ -112,7 +112,8 @@ export async function selectCandidatePhotos(count: number, searchTerms?: string)
   if (terms.length > 0) {
     const matched = pool.filter(c => countMatchingTerms(c, terms) > 0);
     console.log(`[PhotoSelector] Search "${searchTerms}" matched ${matched.length}/${pool.length} unused candidates`);
-    if (matched.length > 0) pool = matched;
+    if (matched.length === 0) return [];
+    pool = matched;
   }
 
   const sortedPosts = [...posts].sort(

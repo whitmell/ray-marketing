@@ -9,6 +9,13 @@ import { scorePhotos } from './scoring.service';
 import { uploadPhotoToS3 } from './s3.service';
 import { publishToFacebook, publishToInstagram } from './publish.service';
 
+export class UserInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserInputError';
+  }
+}
+
 function toPostView(post: Post, photo: PhotoCandidate | undefined): PostView {
   return {
     ...post,
@@ -48,13 +55,18 @@ function newDraft(photo: PhotoCandidate, candidates: ScoringCandidate[]): Post {
 }
 
 export async function runPipeline(searchTerms?: string): Promise<PostView | null> {
-  await discardCurrentDraft();
-
   const candidatePhotos = await selectCandidatePhotos(3, searchTerms);
   if (candidatePhotos.length === 0) {
+    if (searchTerms?.trim()) {
+      const msg = `No photos matched "${searchTerms}". Try different terms separated by commas.`;
+      console.log(`[Pipeline] ${msg}`);
+      throw new UserInputError(msg);
+    }
     console.log('[Pipeline] No unused photos available');
     return null;
   }
+
+  await discardCurrentDraft();
 
   console.log(`[Pipeline] Scoring ${candidatePhotos.length} candidates: ${candidatePhotos.map(p => p.filename).join(', ')}`);
 
