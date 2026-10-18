@@ -225,7 +225,7 @@ Photo candidates are derived by intersecting photos that have both a description
 | `META_PAGE_ACCESS_TOKEN` | — | Meta Graph API page access token |
 | `FACEBOOK_PAGE_ID` | — | Facebook page ID |
 | `INSTAGRAM_USER_ID` | — | Instagram business account ID |
-| `META_API_VERSION` | `v21.0` | Meta Graph API version |
+| `META_API_VERSION` | `v26.0` | Meta Graph API version |
 | `THEME_LOOKBACK` | `2` | Number of recent themes to avoid repeating |
 
 ## API Endpoints
