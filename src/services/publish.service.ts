@@ -30,6 +30,7 @@ async function metaPost(
 
   const safeParams = { ...allParams, access_token: redactToken(allParams.access_token) };
   console.log(`[Meta] POST url=${url}`);
+  console.log(`[Meta] endpoint=${endpoint} apiVersion=${config.metaApiVersion}`);
   console.log(`[Meta] params=${JSON.stringify(safeParams)}`);
 
   const body = new URLSearchParams(allParams);
