@@ -47,7 +47,7 @@ Parameters:
     Type: String
   MetaApiVersion:
     Type: String
-    Default: v21.0
+    Default: v26.0
 
 Conditions:
   GenerateResourcesBucketName: !Equals [!Ref ResourcesBucketName, '']

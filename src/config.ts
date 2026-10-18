@@ -22,5 +22,5 @@ export const config = {
   metaPageAccessToken: process.env.META_PAGE_ACCESS_TOKEN || '',
   facebookPageId: process.env.FACEBOOK_PAGE_ID || '',
   instagramUserId: process.env.INSTAGRAM_USER_ID || '',
-  metaApiVersion: process.env.META_API_VERSION || 'v21.0',
+  metaApiVersion: process.env.META_API_VERSION || 'v26.0',
 };
