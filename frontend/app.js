@@ -393,7 +393,16 @@
   function emptyState() {
     return h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center' }, [
       h('h3', { class: 'text-lg font-semibold text-gray-900 mb-2', text: 'No active draft' }),
-      h('p', { class: 'text-sm text-gray-500 mb-6', text: 'Score a fresh batch of photos, or pick one by hand.' }),
+      h('p', { class: 'text-sm text-gray-500 mb-4', text: 'Score a fresh batch of photos, or pick one by hand.' }),
+      h('div', { class: 'max-w-md mx-auto mb-4' }, [
+        h('input', {
+          id: 'search-terms-input',
+          type: 'text',
+          placeholder: 'Filter: sunset, lighthouse, aerial, snow...',
+          class: 'w-full text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:border-brand-500'
+        }),
+        h('p', { class: 'text-xs text-gray-400 mt-1', text: 'Comma-separated. Photos matching any term are weighted higher.' })
+      ]),
       h('div', { class: 'flex justify-center gap-3' }, [
         h('button', { class: BTN_PRIMARY, text: 'Generate New Post', onclick: function (e) { runPipeline(e.currentTarget); } }),
         h('button', { class: BTN_SECONDARY, text: 'Pick Photo', onclick: openPhotoPicker })
@@ -716,7 +725,11 @@
 
   function runPipeline(btn) {
     return withButton(btn, 'Scoring photos...', async function () {
-      var res = await apiFetch('/api/pipeline/run', { method: 'POST' }, PIPELINE_BASE);
+      var searchInput = document.getElementById('search-terms-input');
+      var searchTerms = searchInput ? searchInput.value.trim() : '';
+      var opts = { method: 'POST' };
+      if (searchTerms) opts = Object.assign(opts, jsonBody({ searchTerms: searchTerms }));
+      var res = await apiFetch('/api/pipeline/run', opts, PIPELINE_BASE);
       var data = null;
       try { data = await res.json(); } catch (e) { /* ignore */ }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Pipeline failed (' + res.status + ')');
