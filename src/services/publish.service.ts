@@ -69,13 +69,13 @@ async function metaPost(
 
 export async function publishToFacebook(
   caption: string,
-  faaUrl: string
+  imageUrl: string
 ): Promise<PublishRecord> {
   console.log(`[Publish] Publishing to Facebook page=${config.facebookPageId} apiVersion=${config.metaApiVersion}`);
 
-  const result = await metaPost(`/${config.facebookPageId}/feed`, {
+  const result = await metaPost(`/${config.facebookPageId}/photos`, {
     message: caption,
-    link: faaUrl,
+    url: imageUrl,
   });
 
   if (!result.id) {

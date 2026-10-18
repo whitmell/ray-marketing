@@ -152,7 +152,7 @@ export async function postToMeta(
   if (!photo) return null;
 
   let imageUrl = post.imageUrl;
-  if (platforms.includes('instagram') && !imageUrl) {
+  if (!imageUrl) {
     imageUrl = await uploadPhotoToS3(post.photoFilename);
   }
 
@@ -164,7 +164,8 @@ export async function postToMeta(
     }
     let record: PublishRecord;
     if (platform === 'facebook') {
-      record = await publishToFacebook(post.caption, photo.faaUrl);
+      if (!imageUrl) throw new Error('Cannot publish to Facebook without image URL');
+      record = await publishToFacebook(post.caption, imageUrl);
     } else {
       if (!imageUrl) throw new Error('Cannot publish to Instagram without image URL');
       record = await publishToInstagram(post.caption, imageUrl);
