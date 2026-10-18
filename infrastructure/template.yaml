@@ -25,7 +25,7 @@ Parameters:
     NoEcho: true
   ClaudeModel:
     Type: String
-    Default: claude-sonnet-4-20250514
+    Default: claude-sonnet-4-6
   OpenaiApiKey:
     Type: String
     NoEcho: true

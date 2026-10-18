@@ -1,6 +1,6 @@
 export const config = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  claudeModel: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+  claudeModel: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
   themeLookback: parseInt(process.env.THEME_LOOKBACK || '2', 10),
 
   // Scoring LLMs
