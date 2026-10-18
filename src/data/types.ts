@@ -108,6 +108,8 @@ export interface ScoringCandidate {
   selected: boolean;
 }
 
+export type PhotoCandidateSummary = Omit<PhotoCandidate, 'description'>;
+
 export interface AppConfig {
   themeLookback: number;
 }

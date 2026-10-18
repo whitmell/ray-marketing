@@ -8,10 +8,11 @@ import {
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { config } from '../config';
-import type { Post, AppConfig } from './types';
+import type { Post, AppConfig, PhotoCandidateSummary } from './types';
 
 const STATUS_INDEX = 'status-createdAt-index';
 const APP_CONFIG_KEY = 'app';
+const PHOTO_CANDIDATES_KEY = 'photo-candidates';
 const DEFAULT_APP_CONFIG: AppConfig = { themeLookback: 2 };
 
 let docClient: DynamoDBDocumentClient | null = null;
@@ -128,6 +129,25 @@ export async function writeAppConfig(appConfig: AppConfig): Promise<void> {
     new PutCommand({
       TableName: config.dynamoTableConfig,
       Item: { key: APP_CONFIG_KEY, value: appConfig },
+    }),
+  );
+}
+
+export async function readPhotoCandidatesCache(): Promise<PhotoCandidateSummary[] | null> {
+  const result = await getClient().send(
+    new GetCommand({
+      TableName: config.dynamoTableConfig,
+      Key: { key: PHOTO_CANDIDATES_KEY },
+    }),
+  );
+  return (result.Item?.value as PhotoCandidateSummary[] | undefined) ?? null;
+}
+
+export async function writePhotoCandidatesCache(candidates: PhotoCandidateSummary[]): Promise<void> {
+  await getClient().send(
+    new PutCommand({
+      TableName: config.dynamoTableConfig,
+      Item: { key: PHOTO_CANDIDATES_KEY, value: candidates },
     }),
   );
 }

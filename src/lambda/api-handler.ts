@@ -1,7 +1,7 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type { Post } from '../data/types';
-import { readPosts, readAppConfig, getCurrentDraft, updatePost } from '../data/dynamodb';
-import { loadPhotoCandidates } from '../data/s3-resources';
+import { readPosts, readAppConfig, getCurrentDraft, updatePost, readPhotoCandidatesCache, writePhotoCandidatesCache } from '../data/dynamodb';
+import { loadPhotoCandidates, clearCandidatesCache } from '../data/s3-resources';
 import { classifyTheme } from '../services/theme.service';
 import {
   getPostViews,
@@ -71,15 +71,26 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return view ? respond(200, view) : notFound();
     }
 
+    if (method === 'POST' && path === '/api/photos/sync') {
+      clearCandidatesCache();
+      const candidates = await loadPhotoCandidates(classifyTheme);
+      const summaries = candidates.map(({ description: _, ...rest }) => rest);
+      await writePhotoCandidatesCache(summaries);
+      return respond(200, { synced: summaries.length });
+    }
+
     if (method === 'GET' && path === '/api/photos') {
-      const [candidates, posted] = await Promise.all([
-        loadPhotoCandidates(classifyTheme),
+      const [cached, posted] = await Promise.all([
+        readPhotoCandidatesCache(),
         readPosts('posted'),
       ]);
+      if (!cached) {
+        return respond(200, { photos: [], needsSync: true });
+      }
       const usedFilenames = new Set(posted.map((p) => p.photoFilename));
       return respond(
         200,
-        candidates.map((c) => ({ ...c, used: usedFilenames.has(c.filename) }))
+        cached.map((c) => ({ ...c, used: usedFilenames.has(c.filename) }))
       );
     }
 

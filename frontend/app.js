@@ -170,6 +170,16 @@
     return { body: JSON.stringify(obj) };
   }
 
+  function toast(message, type) {
+    var el = document.createElement('div');
+    el.textContent = message;
+    el.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 transition-opacity ' +
+      (type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white');
+    document.body.appendChild(el);
+    setTimeout(function () { el.style.opacity = '0'; }, 2500);
+    setTimeout(function () { el.remove(); }, 3000);
+  }
+
   // ---------------------------------------------------------------------------
   // DOM helpers (all text is set via textContent / createTextNode: no innerHTML)
   // ---------------------------------------------------------------------------
@@ -330,7 +340,7 @@
     appendChildren(app, nodes);
   }
 
-  function statsBar(photos) {
+  function statsBar(photos, needsSync) {
     var total = photos.length;
     var used = photos.filter(function (p) { return p.used; }).length;
     function stat(label, value) {
@@ -339,11 +349,39 @@
         h('div', { class: 'text-xs text-gray-500 uppercase tracking-wider', text: label })
       ]);
     }
-    return h('div', { class: 'grid grid-cols-3 gap-4 mb-6' }, [
-      stat('Total Photos', total),
-      stat('Used', used),
-      stat('Available', total - used)
+    var syncBtn = h('button', {
+      id: 'sync-photos-btn',
+      class: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md ' +
+        (needsSync
+          ? 'bg-brand-600 text-white hover:bg-brand-700'
+          : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'),
+      onclick: syncPhotos
+    }, [
+      h('span', { text: '↻' }),
+      h('span', { text: needsSync ? 'Sync Photos' : 'Sync' })
     ]);
+    return h('div', { class: 'flex items-center gap-4 mb-6' }, [
+      h('div', { class: 'grid grid-cols-3 gap-4 flex-1' }, [
+        stat('Total Photos', total),
+        stat('Used', used),
+        stat('Available', total - used)
+      ]),
+      syncBtn
+    ]);
+  }
+
+  async function syncPhotos() {
+    var btn = document.getElementById('sync-photos-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    try {
+      var result = await apiJson('/api/photos/sync', { method: 'POST' });
+      toast('Synced ' + (result.synced || 0) + ' photos');
+      navigate(window.location.pathname);
+    } catch (err) {
+      toast(err.message || 'Sync failed', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sync'; }
+    }
   }
 
   function tabBar(active) {
@@ -367,10 +405,12 @@
       apiJson('/api/photos', { allow404: true }),
       tab === 'current' ? apiJson('/api/posts/current', { allow404: true }) : apiJson('/api/posts?status=posted', { allow404: true })
     ]);
-    var photos = Array.isArray(results[0]) ? results[0] : ((results[0] && results[0].photos) || []);
+    var photosResult = results[0];
+    var needsSync = !!(photosResult && photosResult.needsSync);
+    var photos = Array.isArray(photosResult) ? photosResult : ((photosResult && photosResult.photos) || []);
     var data = results[1];
 
-    var nodes = [statsBar(photos), tabBar(tab)];
+    var nodes = [statsBar(photos, needsSync), tabBar(tab)];
 
     if (tab === 'current') {
       var draft = data && data.post ? data.post : data;
