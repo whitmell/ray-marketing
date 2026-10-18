@@ -29,7 +29,8 @@ async function metaPost(
   const allParams = { ...params, access_token: config.metaPageAccessToken };
 
   const safeParams = { ...allParams, access_token: redactToken(allParams.access_token) };
-  console.log(`[Meta] POST ${url}`, JSON.stringify(safeParams));
+  console.log(`[Meta] POST url=${url}`);
+  console.log(`[Meta] params=${JSON.stringify(safeParams)}`);
 
   const body = new URLSearchParams(allParams);
   const response = await fetch(url, {
@@ -48,7 +49,8 @@ async function metaPost(
   }
 
   if (!response.ok || data.error) {
-    console.error(`[Meta] Error response (${response.status}):`, JSON.stringify(data));
+    console.error(`[Meta] Error response status=${response.status}`);
+    console.error(`[Meta] Error body=${JSON.stringify(data)}`);
     const err = data.error;
     const parts = [
       `Meta API error: ${err?.message ?? `HTTP ${response.status}`}`,
@@ -60,7 +62,7 @@ async function metaPost(
     throw new Error(parts.join(' | '));
   }
 
-  console.log(`[Meta] Success:`, JSON.stringify(data));
+  console.log(`[Meta] Success body=${JSON.stringify(data)}`);
   return data;
 }
 
