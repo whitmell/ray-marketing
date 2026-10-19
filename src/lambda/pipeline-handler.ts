@@ -1,8 +1,19 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { runPipeline, createPostFromPhoto, UserInputError } from '../services/pipeline.service';
+import { runPipeline, createPostFromPhoto, postToMeta, UserInputError } from '../services/pipeline.service';
 
 type JsonResult = Exclude<APIGatewayProxyResultV2, string>;
+
+const PLATFORMS = ['facebook', 'instagram'] as const;
+type Platform = (typeof PLATFORMS)[number];
+
+function isPlatformList(value: unknown): value is Platform[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((p) => (PLATFORMS as ReadonlyArray<unknown>).includes(p))
+  );
+}
 
 let verifier: ReturnType<typeof createVerifier> | null = null;
 
@@ -61,6 +72,16 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
       }
       const view = await createPostFromPhoto(body.filename);
       return view ? respond(200, view) : respond(404, { error: 'Photo not found' });
+    }
+
+    const postMatch = path.match(/^\/api\/pipeline\/post\/([^/]+)$/);
+    if (postMatch) {
+      const postId = decodeURIComponent(postMatch[1]);
+      if (!isPlatformList(body.platforms)) {
+        return respond(400, { error: 'platforms must be a non-empty array of facebook/instagram' });
+      }
+      const post = await postToMeta(postId, body.platforms);
+      return post ? respond(200, post) : respond(404, { error: 'Not found' });
     }
 
     return respond(404, { error: 'Not found' });

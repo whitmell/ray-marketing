@@ -874,7 +874,7 @@
       return Promise.resolve();
     }
     return withButton(btn, 'Posting...', async function () {
-      var post = await apiJson('/api/posts/' + encodeURIComponent(postId) + '/post', Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })));
+      var post = await apiJson('/api/pipeline/post/' + encodeURIComponent(postId), Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })), PIPELINE_BASE);
       if (post) replaceDraftCard(post);
     });
   }

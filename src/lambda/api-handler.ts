@@ -9,12 +9,9 @@ import {
   selectCandidate,
   generateCaptionForPost,
   updatePostCaption,
-  postToMeta,
 } from '../services/pipeline.service';
 
 const POST_STATUSES: ReadonlyArray<Post['status']> = ['draft', 'posted', 'discarded'];
-const PLATFORMS = ['facebook', 'instagram'] as const;
-type Platform = (typeof PLATFORMS)[number];
 
 function respond(statusCode: number, body: unknown): APIGatewayProxyResult {
   return {
@@ -41,14 +38,6 @@ function parseBody(raw: string | null, isBase64: boolean): Record<string, unknow
 
 function isPostStatus(value: string | undefined): value is Post['status'] {
   return value !== undefined && (POST_STATUSES as ReadonlyArray<string>).includes(value);
-}
-
-function isPlatformList(value: unknown): value is Platform[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((p) => (PLATFORMS as ReadonlyArray<unknown>).includes(p))
-  );
 }
 
 export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
@@ -131,14 +120,6 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (method === 'PUT' && action === 'caption') {
       if (typeof body.caption !== 'string') return badRequest('caption is required');
       const post = await updatePostCaption(id, body.caption);
-      return post ? respond(200, post) : notFound();
-    }
-
-    if (method === 'POST' && action === 'post') {
-      if (!isPlatformList(body.platforms)) {
-        return badRequest('platforms must be a non-empty array of facebook/instagram');
-      }
-      const post = await postToMeta(id, body.platforms);
       return post ? respond(200, post) : notFound();
     }
 
