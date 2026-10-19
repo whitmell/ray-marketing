@@ -6,7 +6,7 @@ import { classifyTheme } from './theme.service';
 import { selectCandidatePhotos } from './photo-selector.service';
 import { generateCaption } from './caption.service';
 import { scorePhotos } from './scoring.service';
-import { config } from '../config';
+import { getMetaImageUrl } from './s3.service';
 import { publishToFacebook, publishToInstagram } from './publish.service';
 
 export class UserInputError extends Error {
@@ -153,7 +153,7 @@ export async function postToMeta(
 
   let imageUrl = post.imageUrl;
   if (!imageUrl) {
-    imageUrl = `https://${config.domainName}/photos/${encodeURIComponent(post.photoFilename)}`;
+    imageUrl = await getMetaImageUrl(post.photoFilename);
   }
 
   const publishedTo: PublishRecord[] = [...post.publishedTo];
