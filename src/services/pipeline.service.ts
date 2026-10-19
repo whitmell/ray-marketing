@@ -151,35 +151,27 @@ export async function postToMeta(
   const photo = await findPhoto(post.photoFilename);
   if (!photo) return null;
 
-  let imageUrl = post.imageUrl;
-  if (!imageUrl) {
-    imageUrl = await getMetaImageUrl(post.photoFilename);
-  }
-
   const publishedTo: PublishRecord[] = [...post.publishedTo];
   for (const platform of platforms) {
     if (publishedTo.some(r => r.platform === platform)) {
       console.log(`[Pipeline] Post ${postId} already published to ${platform}, skipping`);
       continue;
     }
+    const imageUrl = await getMetaImageUrl(post.photoFilename, platform);
     let record: PublishRecord;
     if (platform === 'facebook') {
-      if (!imageUrl) throw new Error('Cannot publish to Facebook without image URL');
       record = await publishToFacebook(post.caption, imageUrl);
     } else {
-      if (!imageUrl) throw new Error('Cannot publish to Instagram without image URL');
       record = await publishToInstagram(post.caption, imageUrl);
     }
     publishedTo.push(record);
-    // Persist progress so a later platform failure does not lose earlier records
-    await updatePost(postId, { publishedTo, imageUrl });
+    await updatePost(postId, { publishedTo });
   }
 
   const updates: Partial<Post> = {
     status: 'posted',
     postedAt: new Date().toISOString(),
     publishedTo,
-    imageUrl,
   };
   await updatePost(postId, updates);
   return { ...post, ...updates };
