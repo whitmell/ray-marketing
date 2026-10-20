@@ -209,7 +209,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:PutObject
-                Resource: !Sub 'arn:aws:s3:::${PhotosBucket}/published/*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${PhotosBucket}/meta/*'
+                  - !Sub 'arn:aws:s3:::${PhotosBucket}/meta-ig/*'
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
