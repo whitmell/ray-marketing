@@ -10,7 +10,7 @@ The pipeline uses three environment variables for Meta publishing:
 
 | Variable | What it is |
 |----------|------------|
-| `META_PAGE_ACCESS_TOKEN` | A long-lived Page Access Token with posting permissions |
+| `META_SYSTEM_USER_TOKEN` | A long-lived System User token (the app exchanges it for a page token at runtime) |
 | `FACEBOOK_PAGE_ID` | Your Facebook Page's numeric ID |
 | `INSTAGRAM_USER_ID` | Your Instagram Professional account's numeric ID |
 
@@ -142,9 +142,9 @@ GET https://graph.facebook.com/v26.0/debug_token?
 
 The response should show `"expires_at": 0` (meaning it never expires).
 
-4. Set this as your `META_PAGE_ACCESS_TOKEN` in `.env`.
+4. Set this as your `META_SYSTEM_USER_TOKEN` in `.env`. The app automatically exchanges it for a page access token before each publish.
 
-> **Alternative: System User token.** For a more durable token that isn't tied to your personal Facebook account, create an **Admin System User** in [Meta Business Settings](https://business.facebook.com/settings/system-users). Assign your Page and app to the system user, then generate a token. System User tokens never expire and aren't affected by password changes. This is Meta's recommended approach for server-to-server applications.
+> **Recommended: System User token.** Create an **Admin System User** in [Meta Business Settings](https://business.facebook.com/settings/system-users). Assign your Page and app to the system user, then generate a token. System User tokens never expire and aren't affected by password changes.
 
 ## Step 6: Find Your Facebook Page ID
 

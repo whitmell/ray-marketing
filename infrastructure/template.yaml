@@ -38,7 +38,7 @@ Parameters:
   GeminiModel:
     Type: String
     Default: gemini-3.5-flash
-  MetaPageAccessToken:
+  MetaSystemUserToken:
     Type: String
     NoEcho: true
   FacebookPageId:
@@ -240,7 +240,7 @@ Resources:
           OPENAI_MODEL: !Ref OpenaiModel
           GEMINI_API_KEY: !Ref GeminiApiKey
           GEMINI_MODEL: !Ref GeminiModel
-          META_PAGE_ACCESS_TOKEN: !Ref MetaPageAccessToken
+          META_SYSTEM_USER_TOKEN: !Ref MetaSystemUserToken
           FACEBOOK_PAGE_ID: !Ref FacebookPageId
           INSTAGRAM_USER_ID: !Ref InstagramUserId
           META_API_VERSION: !Ref MetaApiVersion
@@ -274,7 +274,7 @@ Resources:
           OPENAI_MODEL: !Ref OpenaiModel
           GEMINI_API_KEY: !Ref GeminiApiKey
           GEMINI_MODEL: !Ref GeminiModel
-          META_PAGE_ACCESS_TOKEN: !Ref MetaPageAccessToken
+          META_SYSTEM_USER_TOKEN: !Ref MetaSystemUserToken
           FACEBOOK_PAGE_ID: !Ref FacebookPageId
           INSTAGRAM_USER_ID: !Ref InstagramUserId
           META_API_VERSION: !Ref MetaApiVersion

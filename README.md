@@ -99,7 +99,7 @@ Edit `.env` with your values:
 | `ANTHROPIC_API_KEY` | Yes | Claude API key |
 | `OPENAI_API_KEY` | Yes | OpenAI API key (photo scoring) |
 | `GEMINI_API_KEY` | Yes | Google Gemini API key (photo scoring) |
-| `META_PAGE_ACCESS_TOKEN` | For publishing | Meta Graph API page access token |
+| `META_SYSTEM_USER_TOKEN` | For publishing | Meta system user token (exchanges for page token at runtime) |
 | `FACEBOOK_PAGE_ID` | For publishing | Facebook page ID |
 | `INSTAGRAM_USER_ID` | For publishing | Instagram business account ID |
 
@@ -222,7 +222,7 @@ Photo candidates are derived by intersecting photos that have both a description
 | `OPENAI_MODEL` | `gpt-4o` | OpenAI model ID |
 | `GEMINI_API_KEY` | — | Gemini API key for composition scoring |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model ID |
-| `META_PAGE_ACCESS_TOKEN` | — | Meta Graph API page access token |
+| `META_SYSTEM_USER_TOKEN` | — | Meta system user token (exchanges for page token at runtime) |
 | `FACEBOOK_PAGE_ID` | — | Facebook page ID |
 | `INSTAGRAM_USER_ID` | — | Instagram business account ID |
 | `META_API_VERSION` | `v26.0` | Meta Graph API version |

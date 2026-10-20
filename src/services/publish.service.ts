@@ -13,7 +13,33 @@ interface MetaErrorDetail {
 
 interface MetaApiResponse {
   id?: string;
+  access_token?: string;
   error?: MetaErrorDetail;
+}
+
+let cachedPageToken: string | null = null;
+
+async function getPageAccessToken(): Promise<string> {
+  if (cachedPageToken) return cachedPageToken;
+
+  const url = `${META_BASE()}/${config.facebookPageId}?fields=access_token&access_token=${encodeURIComponent(config.metaSystemUserToken)}`;
+  console.log(`[Meta] Exchanging system user token for page token`);
+
+  const response = await fetch(url);
+  const data = await response.json() as MetaApiResponse;
+
+  if (!response.ok || data.error) {
+    const msg = data.error?.message ?? `HTTP ${response.status}`;
+    throw new Error(`Meta token exchange failed: ${msg}`);
+  }
+
+  if (!data.access_token) {
+    throw new Error('Meta token exchange returned no access_token');
+  }
+
+  cachedPageToken = data.access_token;
+  console.log(`[Meta] Page token obtained (${redactToken(cachedPageToken)})`);
+  return cachedPageToken;
 }
 
 function redactToken(value: string): string {
@@ -26,7 +52,8 @@ async function metaPost(
   params: Record<string, string>
 ): Promise<MetaApiResponse> {
   const url = `${META_BASE()}${endpoint}`;
-  const allParams = { ...params, access_token: config.metaPageAccessToken };
+  const pageToken = await getPageAccessToken();
+  const allParams = { ...params, access_token: pageToken };
 
   const safeParams = { ...allParams, access_token: redactToken(allParams.access_token) };
   console.log(`[Meta] POST url=${url}`);

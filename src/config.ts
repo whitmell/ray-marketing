@@ -19,7 +19,7 @@ export const config = {
   domainName: process.env.DOMAIN_NAME || '',
 
   // Meta Graph API
-  metaPageAccessToken: process.env.META_PAGE_ACCESS_TOKEN || '',
+  metaSystemUserToken: process.env.META_SYSTEM_USER_TOKEN || '',
   facebookPageId: process.env.FACEBOOK_PAGE_ID || '',
   instagramUserId: process.env.INSTAGRAM_USER_ID || '',
   metaApiVersion: process.env.META_API_VERSION || 'v26.0',
