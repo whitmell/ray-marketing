@@ -873,10 +873,103 @@
       showError('Select at least one platform.');
       return Promise.resolve();
     }
-    return withButton(btn, 'Posting...', async function () {
-      var post = await apiJson('/api/pipeline/post/' + encodeURIComponent(postId), Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })), PIPELINE_BASE);
-      if (post) replaceDraftCard(post);
+
+    var original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Posting...'; }
+
+    // Disable checkboxes during publish
+    ['facebook', 'instagram'].forEach(function (key) {
+      var box = document.getElementById('platform-' + postId + '-' + key);
+      if (box) box.disabled = true;
     });
+
+    var LABELS = { facebook: 'Facebook', instagram: 'Instagram' };
+
+    // Build checklist panel
+    var panelId = 'publish-progress-' + postId;
+    var existing = document.getElementById(panelId);
+    if (existing) existing.remove();
+
+    var items = {};
+    var listChildren = platforms.map(function (p) {
+      var spinner = h('span', { class: 'publish-step-icon spin', text: '◠' });
+      var label = h('span', { class: 'text-sm text-gray-700', text: 'Posting to ' + LABELS[p] });
+      var row = h('div', { class: 'flex items-center gap-2.5 py-1.5' }, [spinner, label]);
+      items[p] = { row: row, spinner: spinner, label: label };
+      return row;
+    });
+
+    var panel = h('div', { id: panelId, class: 'mt-3 p-3 rounded-md bg-gray-50 border border-gray-200' }, listChildren);
+
+    // Insert panel after the publish row
+    var publishRow = document.getElementById('publish-row-' + postId);
+    if (publishRow) {
+      publishRow.parentNode.insertBefore(panel, publishRow.nextSibling);
+    }
+
+    // Add spinner animation if not already present
+    if (!document.getElementById('publish-spin-style')) {
+      var style = document.createElement('style');
+      style.id = 'publish-spin-style';
+      style.textContent = '@keyframes publish-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}.publish-step-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;font-size:14px;flex-shrink:0;}.publish-step-icon.spin{animation:publish-spin .8s linear infinite;color:#9ca3af;}';
+      document.head.appendChild(style);
+    }
+
+    function markSuccess(p) {
+      items[p].spinner.className = 'publish-step-icon';
+      items[p].spinner.textContent = '✓';
+      items[p].spinner.style.color = '#16a34a';
+      items[p].label.classList.remove('text-gray-700');
+      items[p].label.classList.add('text-green-700');
+    }
+
+    function markError(p, message) {
+      items[p].spinner.className = 'publish-step-icon';
+      items[p].spinner.textContent = '✗';
+      items[p].spinner.style.color = '#dc2626';
+      items[p].label.classList.remove('text-gray-700');
+      items[p].label.classList.add('text-red-700');
+      var errDetail = h('div', { class: 'text-xs text-red-600 mt-1 ml-7', text: message });
+      items[p].row.parentNode.insertBefore(errDetail, items[p].row.nextSibling);
+    }
+
+    function markPending(p) {
+      items[p].spinner.className = 'publish-step-icon';
+      items[p].spinner.textContent = '○';
+      items[p].spinner.style.color = '#9ca3af';
+    }
+
+    // Sequential per-platform publish
+    var lastPost = null;
+    (async function () {
+      try {
+        for (var i = 0; i < platforms.length; i++) {
+          var p = platforms[i];
+          var post = await apiJson(
+            '/api/pipeline/post/' + encodeURIComponent(postId),
+            Object.assign({ method: 'POST' }, jsonBody({ platforms: [p] })),
+            PIPELINE_BASE
+          );
+          lastPost = post;
+          markSuccess(p);
+        }
+        if (lastPost) replaceDraftCard(lastPost);
+      } catch (err) {
+        console.error(err);
+        var failedPlatform = platforms[i];
+        markError(failedPlatform, err.message || 'Something went wrong');
+        // Mark remaining platforms as skipped
+        for (var j = i + 1; j < platforms.length; j++) {
+          markPending(platforms[j]);
+        }
+        if (btn) { btn.disabled = false; btn.textContent = original; }
+        // Re-enable unchecked boxes
+        ['facebook', 'instagram'].forEach(function (key) {
+          var box = document.getElementById('platform-' + postId + '-' + key);
+          if (box && !box.checked) box.disabled = false;
+        });
+      }
+    })();
   }
 
   // ---------------------------------------------------------------------------
