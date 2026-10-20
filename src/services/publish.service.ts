@@ -49,11 +49,11 @@ function redactToken(value: string): string {
 
 async function metaPost(
   endpoint: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  token: string
 ): Promise<MetaApiResponse> {
   const url = `${META_BASE()}${endpoint}`;
-  const pageToken = await getPageAccessToken();
-  const allParams = { ...params, access_token: pageToken };
+  const allParams = { ...params, access_token: token };
 
   const safeParams = { ...allParams, access_token: redactToken(allParams.access_token) };
   console.log(`[Meta] POST url=${url}`);
@@ -100,10 +100,11 @@ export async function publishToFacebook(
 ): Promise<PublishRecord> {
   console.log(`[Publish] Publishing to Facebook page=${config.facebookPageId} apiVersion=${config.metaApiVersion}`);
 
+  const pageToken = await getPageAccessToken();
   const result = await metaPost(`/${config.facebookPageId}/photos`, {
     message: caption,
     url: imageUrl,
-  });
+  }, pageToken);
 
   if (!result.id) {
     throw new Error('Facebook publish returned no post ID');
@@ -122,10 +123,11 @@ export async function publishToInstagram(
 ): Promise<PublishRecord> {
   console.log(`[Publish] Publishing to Instagram user=${config.instagramUserId} apiVersion=${config.metaApiVersion}`);
 
+  const token = config.metaSystemUserToken;
   const container = await metaPost(`/${config.instagramUserId}/media`, {
     image_url: imageUrl,
     caption: caption,
-  });
+  }, token);
 
   if (!container.id) {
     throw new Error('Instagram container creation returned no ID');
@@ -133,7 +135,7 @@ export async function publishToInstagram(
 
   const published = await metaPost(`/${config.instagramUserId}/media_publish`, {
     creation_id: container.id,
-  });
+  }, token);
 
   if (!published.id) {
     throw new Error('Instagram publish returned no media ID');
