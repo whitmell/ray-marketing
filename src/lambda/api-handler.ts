@@ -87,6 +87,22 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return respond(200, await readAppConfig());
     }
 
+    if (method === 'GET' && path === '/api/instagram/recent') {
+      const { config: appConfig } = await import('../config');
+      const limit = event.queryStringParameters?.limit || '12';
+      const igUrl = `https://graph.facebook.com/${appConfig.metaApiVersion}/${appConfig.instagramUserId}/media`
+        + `?fields=id,caption,media_url,thumbnail_url,media_type,timestamp,permalink`
+        + `&limit=${encodeURIComponent(limit)}`
+        + `&access_token=${encodeURIComponent(appConfig.metaSystemUserToken)}`;
+      const igRes = await fetch(igUrl);
+      const igData = await igRes.json() as Record<string, unknown>;
+      if (!igRes.ok) {
+        const igErr = igData.error as Record<string, unknown> | undefined;
+        return respond(igRes.status, { error: igErr?.message ?? `Instagram API error (${igRes.status})` });
+      }
+      return respond(200, igData);
+    }
+
     const match = path.match(/^\/api\/posts\/([^/]+)(?:\/([^/]+))?$/);
     if (!match) return notFound();
     const id = event.pathParameters?.id ?? decodeURIComponent(match[1]);

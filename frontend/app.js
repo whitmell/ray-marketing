@@ -304,6 +304,8 @@
         await renderDashboard('current');
       } else if (path === '/posted') {
         await renderDashboard('posted');
+      } else if (path === '/instagram') {
+        await renderInstagramFeed();
       } else if ((match = path.match(/^\/posts\/([^/]+)$/))) {
         await renderPostDetail(decodeURIComponent(match[1]));
       } else {
@@ -396,7 +398,8 @@
     }
     return h('div', { class: 'flex border-b border-gray-200 mb-6' }, [
       tab('Current', '/', 'current'),
-      tab('Posted', '/posted', 'posted')
+      tab('Posted', '/posted', 'posted'),
+      tab('Instagram', '/instagram', 'instagram')
     ]);
   }
 
@@ -426,6 +429,49 @@
       } else {
         posts.forEach(function (p) { nodes.push(postedCard(p)); });
       }
+    }
+    mount(nodes);
+  }
+
+  async function renderInstagramFeed() {
+    var data = await apiJson('/api/instagram/recent?limit=12');
+    var posts = (data && data.data) || [];
+
+    var nodes = [tabBar('instagram')];
+
+    if (posts.length === 0) {
+      nodes.push(h('div', { class: 'text-center py-12 text-gray-500', text: 'No recent Instagram posts found.' }));
+    } else {
+      var grid = h('div', { class: 'grid grid-cols-2 sm:grid-cols-3 gap-4' });
+      posts.forEach(function (post) {
+        var imgUrl = post.media_type === 'VIDEO' ? post.thumbnail_url : post.media_url;
+        var captionText = post.caption || '';
+        var snippet = captionText.length > 80 ? captionText.slice(0, 80) + '...' : captionText;
+        var date = new Date(post.timestamp);
+        var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        var card = h('a', {
+          href: post.permalink,
+          target: '_blank',
+          rel: 'noopener',
+          class: 'group bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow'
+        }, [
+          h('div', { class: 'aspect-square overflow-hidden bg-gray-100' }, [
+            h('img', {
+              src: imgUrl,
+              alt: snippet,
+              class: 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200',
+              loading: 'lazy'
+            })
+          ]),
+          h('div', { class: 'p-3' }, [
+            h('p', { class: 'text-xs text-gray-500 mb-1', text: dateStr }),
+            h('p', { class: 'text-sm text-gray-700 line-clamp-2', text: snippet })
+          ])
+        ]);
+        grid.appendChild(card);
+      });
+      nodes.push(grid);
     }
     mount(nodes);
   }
