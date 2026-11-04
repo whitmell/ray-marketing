@@ -4,12 +4,13 @@ Automated marketing pipeline for [Ray Matthews](https://raymatthews.com) fine ar
 
 ## How It Works
 
-1. **Score** — The pipeline evaluates candidate photos using three AI models: Gemini (composition), Claude (color and tonal quality), and OpenAI (artistic impact). A curator model ranks the top candidates.
-2. **Select** — The highest-ranked photo becomes the current draft. You can also pick a specific photo from the full library.
-3. **Caption** — Claude generates a social media caption using a customizable prompt template.
-4. **Publish** — Post to Facebook and/or Instagram with one click.
+1. **Create** — Generate a post to select three photos. The candidates are saved as a draft before scoring begins, so they remain available in Drafts if you leave the site or scoring fails.
+2. **Drafts** — Review saved candidates in reverse chronological order, select a photo, and generate its caption to move it to Working. Draft photos remain available for future runs.
+3. **Working** — The latest post that has advanced past draft review. Generating a caption for a different draft returns the previous working post to Drafts.
+4. **Publish** — Post to Facebook and/or Instagram with one click; published posts appear under Posted.
 
 Photos are classified into 13 theme categories (lighthouse, sunset-sunrise, beach-dunes, wildlife, etc.) and the pipeline avoids repeating recent themes.
+Only posted photos are excluded from future runs; draft candidates remain in the available photo pool.
 
 ## Architecture
 
@@ -114,19 +115,19 @@ See [docs/meta-setup.md](docs/meta-setup.md) for detailed Meta/Facebook/Instagra
 This will:
 1. Build and zip Lambda functions
 2. Create/update the CloudFormation stack (Cognito, DynamoDB, S3, Lambda, API Gateway, CloudFront, ACM certificate, Route 53 records)
-3. Upload Lambda code and frontend files
+3. Upload the caption prompt, Lambda code, and frontend files
 4. Create a Cognito user (first deploy only — check your email for the temporary password)
 5. Invalidate CloudFront cache
 
 The ACM certificate validation can take 5–30 minutes on first deploy. CloudFormation waits for it automatically.
 
-### 4. Upload resources (first deploy)
+### 4. Upload resources separately (optional)
 
 ```powershell
 .\infrastructure\upload-resources.ps1
 ```
 
-Uploads `resources/descriptions.json`, `resources/upload-progress.json`, and `resources/caption-prompt.md` to the resources S3 bucket.
+The deploy script uploads `resources/caption-prompt.md` automatically. This command uploads all three resource files, including `descriptions.json` and `upload-progress.json`; use it only when you intentionally want the local JSON files to replace the S3 copies.
 
 ### 5. Seed data (optional, one-time migration)
 
@@ -236,12 +237,12 @@ All endpoints require Cognito authentication (JWT Bearer token).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/posts?status=` | List posts, optionally filtered by status |
-| `GET` | `/api/posts/current` | Get the current draft |
+| `GET` | `/api/posts?status=` | List posts, optionally filtered by draft, working, or posted status |
+| `GET` | `/api/posts/current` | Get the current working post |
 | `GET` | `/api/posts/:id` | Get a single post |
-| `DELETE` | `/api/posts/:id` | Discard a post |
+| `DELETE` | `/api/posts/:id` | Permanently delete a draft or working post |
 | `POST` | `/api/posts/:id/select-photo` | Select a scored photo candidate |
-| `POST` | `/api/posts/:id/generate-caption` | Generate a caption for the draft |
+| `POST` | `/api/posts/:id/generate-caption` | Generate a draft caption or regenerate the Working post's caption |
 | `PUT` | `/api/posts/:id/caption` | Edit the caption |
 | `POST` | `/api/posts/:id/post` | Publish to Facebook/Instagram |
 | `GET` | `/api/photos` | List all photo candidates |

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Post, PostView, PublishRecord, PhotoCandidate, ScoringCandidate } from '../data/types';
 import { loadPhotoCandidates } from '../data/s3-resources';
-import { readPosts, readPost, getCurrentDraft, writePost, updatePost } from '../data/dynamodb';
+import { readPosts, readPost, getCurrentPost, writePost, updatePost } from '../data/dynamodb';
 import { classifyTheme } from './theme.service';
 import { selectCandidatePhotos } from './photo-selector.service';
 import { generateCaption } from './caption.service';
@@ -31,14 +31,6 @@ async function findPhoto(filename: string): Promise<PhotoCandidate | undefined> 
   return all.find(c => c.filename === filename);
 }
 
-async function discardCurrentDraft(): Promise<void> {
-  const draft = await getCurrentDraft();
-  if (draft) {
-    await updatePost(draft.id, { status: 'discarded' });
-    console.log(`[Pipeline] Discarded existing draft ${draft.id}`);
-  }
-}
-
 function newDraft(photo: PhotoCandidate, candidates: ScoringCandidate[]): Post {
   return {
     id: uuidv4(),
@@ -66,31 +58,56 @@ export async function runPipeline(searchTerms?: string): Promise<PostView | null
     return null;
   }
 
-  await discardCurrentDraft();
+  const initialCandidates: ScoringCandidate[] = candidatePhotos.map(photo => ({
+    filename: photo.filename,
+    title: photo.title,
+    primaryTheme: photo.primaryTheme,
+    criticScores: { composition: null, colorTonal: null, artisticImpact: null },
+    curatorRanking: null,
+    selected: false,
+  }));
+  const post = newDraft(candidatePhotos[0], initialCandidates);
+  await writePost(post);
+  console.log(`[Pipeline] Created draft ${post.id} with ${candidatePhotos.length} candidates`);
 
   console.log(`[Pipeline] Scoring ${candidatePhotos.length} candidates: ${candidatePhotos.map(p => p.filename).join(', ')}`);
 
   const candidates = await scorePhotos(candidatePhotos);
   const selectedCandidate = candidates.find(c => c.selected);
-  if (!selectedCandidate) {
-    console.log('[Pipeline] No candidate selected after scoring');
+  const latestPost = await readPost(post.id);
+  if (!latestPost) {
+    console.log(`[Pipeline] Draft ${post.id} was discarded before scoring completed`);
     return null;
   }
+  const userSelectedCandidate = latestPost.candidates.find(c => c.selected);
+  const selectedFilename = userSelectedCandidate?.filename ?? selectedCandidate?.filename;
+  const photo = candidatePhotos.find(p => p.filename === selectedFilename) ?? candidatePhotos[0];
+  const scoredCandidates = candidates.map(candidate => ({
+    ...candidate,
+    selected: candidate.filename === selectedFilename,
+  }));
 
-  const photo = candidatePhotos.find(p => p.filename === selectedCandidate.filename);
-  if (!photo) return null;
-
-  const post = newDraft(photo, candidates);
-  await writePost(post);
-  console.log(`[Pipeline] Created draft ${post.id} for "${photo.title}"`);
-  return toPostView(post, photo);
+  await updatePost(post.id, {
+    candidates: scoredCandidates,
+    photoFilename: photo.filename,
+    primaryTheme: photo.primaryTheme,
+  });
+  if (!selectedFilename) {
+    console.log(`[Pipeline] No candidate selected for draft ${post.id}`);
+  } else {
+    console.log(`[Pipeline] Selected "${photo.title}" for draft ${post.id}`);
+  }
+  return toPostView({
+    ...latestPost,
+    candidates: scoredCandidates,
+    photoFilename: photo.filename,
+    primaryTheme: photo.primaryTheme,
+  }, photo);
 }
 
 export async function createPostFromPhoto(filename: string): Promise<PostView | null> {
   const photo = await findPhoto(filename);
   if (!photo) return null;
-
-  await discardCurrentDraft();
 
   const candidate: ScoringCandidate = {
     filename: photo.filename,
@@ -109,16 +126,25 @@ export async function createPostFromPhoto(filename: string): Promise<PostView | 
 
 export async function generateCaptionForPost(postId: string): Promise<Post | null> {
   const post = await readPost(postId);
-  if (!post || post.status !== 'draft') return null;
+  if (!post || (post.status !== 'draft' && post.status !== 'working')) return null;
 
   const selected = post.candidates.find(c => c.selected);
-  const filename = selected?.filename ?? post.photoFilename;
+  if (!selected) return null;
+  const filename = selected.filename;
   const photo = await findPhoto(filename);
   if (!photo) return null;
 
   const caption = await generateCaption(photo.title, photo.description, photo.faaUrl);
-  await updatePost(postId, { caption });
-  return { ...post, caption };
+  const workingPosts = await readPosts('working');
+  for (const workingPost of workingPosts) {
+    if (workingPost.id !== postId) {
+      await updatePost(workingPost.id, { status: 'draft', caption: null });
+      console.log(`[Pipeline] Returned working post ${workingPost.id} to drafts`);
+    }
+  }
+  await updatePost(postId, { caption, status: 'working' });
+  console.log(`[Pipeline] Moved post ${postId} to working`);
+  return { ...post, caption, status: 'working' };
 }
 
 export async function selectCandidate(postId: string, filename: string): Promise<PostView | null> {
@@ -146,7 +172,7 @@ export async function postToMeta(
   platforms: Array<'facebook' | 'instagram'>
 ): Promise<Post | null> {
   const post = await readPost(postId);
-  if (!post || post.status !== 'draft' || post.caption === null) return null;
+  if (!post || (post.status !== 'working' && post.status !== 'posted') || post.caption === null) return null;
 
   const photo = await findPhoto(post.photoFilename);
   if (!photo) return null;
@@ -179,7 +205,7 @@ export async function postToMeta(
 
 export async function updatePostCaption(postId: string, caption: string): Promise<Post | null> {
   const post = await readPost(postId);
-  if (!post || post.status !== 'draft') return null;
+  if (!post || post.status !== 'working') return null;
   await updatePost(postId, { caption });
   return { ...post, caption };
 }

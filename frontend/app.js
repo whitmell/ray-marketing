@@ -300,12 +300,18 @@
     app.appendChild(h('p', { class: 'text-gray-500 text-sm', text: 'Loading...' }));
     try {
       var match;
-      if (path === '/' || path === '/current' || path === '/index.html') {
-        await renderDashboard('current');
+      if (path === '/' || path === '/create' || path === '/index.html') {
+        await renderDashboard('create');
+      } else if (path === '/drafts') {
+        await renderDashboard('drafts');
+      } else if (path === '/working' || path === '/current') {
+        await renderDashboard('working');
       } else if (path === '/posted') {
         await renderDashboard('posted');
       } else if (path === '/instagram') {
         await renderInstagramFeed();
+      } else if (path === '/insights') {
+        await renderInsights();
       } else if ((match = path.match(/^\/posts\/([^/]+)$/))) {
         await renderPostDetail(decodeURIComponent(match[1]));
       } else {
@@ -392,21 +398,79 @@
       return h('a', {
         href: href,
         'data-link': true,
-        class: 'px-4 py-2 text-sm font-medium border-b-2 ' +
-          (on ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700')
+        class: 'px-4 py-2 text-sm font-medium border-b-2 transition-colors ' +
+          (on ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')
       }, label);
     }
-    return h('div', { class: 'flex border-b border-gray-200 mb-6' }, [
-      tab('Current', '/', 'current'),
+    return h('div', { class: 'flex flex-wrap border-b border-gray-200 mb-6' }, [
+      tab('Create', '/create', 'create'),
+      tab('Drafts', '/drafts', 'drafts'),
+      tab('Working', '/working', 'working'),
       tab('Posted', '/posted', 'posted'),
-      tab('Instagram', '/instagram', 'instagram')
+      tab('Instagram', '/instagram', 'instagram'),
+      tab('Insights', '/insights', 'insights')
     ]);
   }
 
+  async function renderInsights() {
+    var data = await apiJson('/api/insights?limit=15');
+    var rows = (data && data.rows) || [];
+    var nodes = [tabBar('insights')];
+
+    ((data && data.errors) || []).forEach(function (msg) {
+      nodes.push(h('div', { class: 'mb-4 px-4 py-3 text-sm bg-red-50 border border-red-200 text-red-700', text: msg }));
+    });
+
+    if (rows.length === 0) {
+      nodes.push(h('div', { class: 'text-center py-12 text-gray-500', text: 'No published posts found.' }));
+      mount(nodes);
+      return;
+    }
+
+    function num(v) { return v === null || v === undefined ? '—' : Number(v).toLocaleString('en-US'); }
+    function th(label, right) {
+      return h('th', { class: 'px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider ' + (right ? 'text-right' : 'text-left'), text: label });
+    }
+    function td(content, right) {
+      return h('td', { class: 'px-3 py-2 text-sm text-gray-700 ' + (right ? 'text-right tabular-nums' : ''), text: content });
+    }
+
+    var head = h('tr', { class: 'border-b border-gray-200' }, [
+      th('Post'), th('Platform'), th('Date'), th('Views', true), th('Reach', true),
+      th('Likes', true), th('Comments', true), th('Shares', true), th('Saves', true)
+    ]);
+    var body = h('tbody', { class: 'divide-y divide-gray-100' });
+    rows.forEach(function (r) {
+      var snippet = r.text.length > 70 ? r.text.slice(0, 70) + '…' : r.text;
+      var date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      var postCell = h('td', { class: 'px-3 py-2' }, [
+        h('a', { href: r.permalink || '#', target: '_blank', rel: 'noopener', class: 'flex items-center gap-3 hover:underline' }, [
+          r.thumbnailUrl
+            ? h('img', { src: r.thumbnailUrl, alt: '', loading: 'lazy', class: 'w-10 h-10 object-cover flex-shrink-0' })
+            : h('div', { class: 'w-10 h-10 bg-gray-100 flex-shrink-0' }),
+          h('span', { class: 'text-sm text-gray-700', text: snippet || '(no caption)' })
+        ])
+      ]);
+      body.appendChild(h('tr', {}, [
+        postCell,
+        td(r.platform === 'facebook' ? 'Facebook' : 'Instagram'),
+        td(date),
+        td(num(r.views), true), td(num(r.reach), true), td(num(r.likes), true),
+        td(num(r.comments), true), td(num(r.shares), true), td(num(r.saves), true)
+      ]));
+    });
+
+    nodes.push(h('div', { class: 'bg-white border border-gray-200 overflow-x-auto' }, [
+      h('table', { class: 'min-w-full' }, [h('thead', {}, [head]), body])
+    ]));
+    mount(nodes);
+  }
+
   async function renderDashboard(tab) {
+    var postStatus = tab === 'drafts' ? 'draft' : tab === 'working' ? 'working' : tab;
     var results = await Promise.all([
       apiJson('/api/photos', { allow404: true }),
-      tab === 'current' ? apiJson('/api/posts/current', { allow404: true }) : apiJson('/api/posts?status=posted', { allow404: true })
+      tab === 'create' ? Promise.resolve(null) : apiJson('/api/posts?status=' + encodeURIComponent(postStatus), { allow404: true })
     ]);
     var photosResult = results[0];
     var needsSync = !!(photosResult && photosResult.needsSync);
@@ -415,19 +479,20 @@
 
     var nodes = [statsBar(photos, needsSync), tabBar(tab)];
 
-    if (tab === 'current') {
-      var draft = data && data.post ? data.post : data;
-      if (!draft || !draft.id) {
-        nodes.push(emptyState());
-      } else {
-        nodes.push(draftCard(draft));
-      }
+    if (tab === 'create') {
+      nodes.push(emptyState());
     } else {
       var posts = Array.isArray(data) ? data : ((data && data.posts) || []);
-      if (posts.length === 0) {
-        nodes.push(h('div', { class: 'text-center py-12 text-gray-500', text: 'No posts have been published yet.' }));
+      if (tab === 'working') {
+        if (posts.length === 0) {
+          nodes.push(h('div', { class: 'text-center py-12 text-gray-500', text: 'No post is currently being worked.' }));
+        } else {
+          nodes.push(draftCard(posts[0]));
+        }
+      } else if (posts.length === 0) {
+        nodes.push(h('div', { class: 'text-center py-12 text-gray-500', text: tab === 'drafts' ? 'No drafts yet. Create a new post to get started.' : 'No posts have been published yet.' }));
       } else {
-        posts.forEach(function (p) { nodes.push(postedCard(p)); });
+        posts.forEach(function (p) { nodes.push(tab === 'posted' ? postedCard(p) : draftCard(p)); });
       }
     }
     mount(nodes);
@@ -478,8 +543,8 @@
 
   function emptyState() {
     return h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center' }, [
-      h('h3', { class: 'text-lg font-semibold text-gray-900 mb-2', text: 'No active draft' }),
-      h('p', { class: 'text-sm text-gray-500 mb-4', text: 'Score a fresh batch of photos, or pick one by hand.' }),
+      h('h3', { class: 'text-lg font-semibold text-gray-900 mb-2', text: 'Create a post' }),
+      h('p', { class: 'text-sm text-gray-500 mb-4', text: 'Score a fresh batch of photos, or choose one from the library.' }),
       h('div', { class: 'max-w-md mx-auto mb-4' }, [
         h('input', {
           id: 'search-terms-input',
@@ -497,7 +562,7 @@
   }
 
   function postedCard(post) {
-    return h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4' }, [
+    var card = h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4' }, [
       h('div', { class: 'flex items-start justify-between mb-3' }, [
         h('div', null, [
           h('h3', { class: 'text-lg font-semibold text-gray-900' }, [
@@ -515,6 +580,19 @@
         text: post.caption ? (post.caption.length > 240 ? post.caption.slice(0, 240).replace(/\*\*/g, '') + '...' : post.caption.replace(/\*\*/g, '')) : ''
       })
     ]);
+    var published = new Set((post.publishedTo || []).map(function (record) { return record.platform; }));
+    var missingPlatforms = ['facebook', 'instagram'].filter(function (platform) { return !published.has(platform); });
+    if (missingPlatforms.length > 0) {
+      card.appendChild(h('div', { class: 'flex gap-2 mt-3' }, missingPlatforms.map(function (platform) {
+        var label = platform === 'facebook' ? 'Facebook' : 'Instagram';
+        return h('button', {
+          class: BTN_SECONDARY,
+          text: 'Also post to ' + label,
+          onclick: function (e) { publishAdditionalPlatform(post.id, platform, e.currentTarget); }
+        });
+      })));
+    }
+    return card;
   }
 
   // ---------------------------------------------------------------------------
@@ -522,12 +600,14 @@
   // ---------------------------------------------------------------------------
 
   function draftCard(post) {
-    var readOnly = post.status !== 'draft';
+    var readOnly = post.status === 'posted' || post.status === 'discarded';
     var card = h('div', { class: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4' });
 
     var headerRight = [];
     if (post.status === 'draft') {
       headerRight.push(badge('Draft', 'bg-yellow-100 text-yellow-800'));
+    } else if (post.status === 'working') {
+      headerRight.push(badge('Working', 'bg-blue-100 text-blue-700'));
     } else if (post.status === 'posted') {
       headerRight.push(badge('Posted', 'bg-green-100 text-green-800'));
     } else {
@@ -536,12 +616,12 @@
     headerRight = headerRight.concat(platformBadges(post.publishedTo));
 
     var headerButtons = headerRight;
-    if (!readOnly) {
+    if (post.status === 'draft' || post.status === 'working') {
       headerButtons = headerRight.concat([
         h('button', {
           class: 'ml-2 px-3 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors',
           text: 'Discard',
-          onclick: function (e) { discardPost(post.id, e.currentTarget); }
+          onclick: function (e) { discardPost(post.id, post.status, e.currentTarget); }
         })
       ]);
     }
@@ -566,7 +646,7 @@
 
     var hasScoring = post.candidates && post.candidates.length > 0 && post.candidates[0].criticScores;
     if (hasScoring) {
-      card.appendChild(candidatesSection(post, readOnly));
+      card.appendChild(candidatesSection(post, post.status === 'draft'));
     } else if (post.photoFilename) {
       card.appendChild(h('div', { class: 'mb-3 p-3 bg-gray-900 rounded-lg flex items-center justify-center' }, [
         h('img', { src: post.imageUrl || photoUrl(post.photoFilename), alt: post.photoTitle || '', class: 'max-h-80 w-auto object-contain rounded', loading: 'lazy' })
@@ -590,6 +670,10 @@
     if (!post.caption) {
       if (readOnly) {
         wrap.appendChild(h('p', { class: 'text-sm text-gray-500 italic', text: 'No caption.' }));
+      } else if (post.status === 'working') {
+        wrap.appendChild(h('p', { class: 'text-sm text-gray-500 italic', text: 'Caption is not available yet.' }));
+      } else if (!(post.candidates || []).some(function (candidate) { return candidate.selected; })) {
+        wrap.appendChild(h('p', { class: 'text-sm text-gray-500', text: 'Select a photo above to generate its caption.' }));
       } else {
         wrap.appendChild(h('div', { class: 'flex items-center justify-between' }, [
           h('p', { class: 'text-sm text-gray-500', text: 'No caption yet for the selected photo.' }),
@@ -600,12 +684,17 @@
     }
 
     var headerRow = [h('h4', { class: 'text-xs font-medium text-gray-500 uppercase tracking-wider', text: 'Generated Caption' })];
-    if (!readOnly) {
+    if (post.status === 'working') {
       headerRow.push(h('button', {
         id: 'edit-btn-' + id,
         class: 'text-xs text-brand-600 hover:text-brand-700 hover:underline',
         text: 'Edit',
         onclick: function () { startEditCaption(id); }
+      }));
+      headerRow.push(h('button', {
+        class: 'text-xs text-brand-600 hover:text-brand-700 hover:underline',
+        text: 'Regenerate caption',
+        onclick: function (e) { generateCaption(id, e.currentTarget); }
       }));
     }
     wrap.appendChild(h('div', { class: 'flex items-center justify-between mb-2' }, headerRow));
@@ -615,6 +704,12 @@
     wrap.appendChild(display);
 
     if (readOnly) return wrap;
+    if (post.status !== 'working') {
+      wrap.appendChild(h('div', { class: 'flex justify-end mt-3' }, [
+        h('button', { class: BTN_PRIMARY, text: 'Regenerate Caption & Start Working', onclick: function (e) { generateCaption(id, e.currentTarget); } })
+      ]));
+      return wrap;
+    }
 
     wrap.appendChild(h('div', { class: 'hidden', id: 'caption-edit-' + id }, [
       h('textarea', {
@@ -679,10 +774,14 @@
     return rank === 5 ? 'text-green-700' : rank === 3 ? 'text-yellow-600' : 'text-gray-400';
   }
 
-  function candidatesSection(post, readOnly) {
+  function candidatesSection(post, canSelect) {
     var id = post.id;
     var cands = post.candidates;
     var selectedIdx = Math.max(0, cands.findIndex(function (c) { return c.selected; }));
+    var hasScores = cands.some(function (c) {
+      var scores = c.criticScores || {};
+      return scores.composition || scores.colorTonal || scores.artisticImpact || c.curatorRanking;
+    });
 
     var tabs = h('div', { class: 'flex border-b border-gray-200' }, cands.map(function (c, idx) {
       var on = idx === selectedIdx;
@@ -737,11 +836,11 @@
         ]),
         scores
       ];
-      if (!c.selected && !readOnly) {
+      if (!c.selected && canSelect) {
         info.push(h('div', { class: 'mt-3 pt-3 border-t border-gray-200' }, [
           h('button', {
             class: 'w-full ' + BTN_PRIMARY,
-            text: 'Select This Photo & Generate Caption',
+            text: 'Select This Photo',
             onclick: function (e) { selectCandidate(id, c.filename, e.currentTarget); }
           })
         ]));
@@ -760,7 +859,7 @@
     return h('div', { class: 'mb-3 border border-gray-200 rounded-lg overflow-hidden', id: 'candidates-' + id }, [
       h('div', { class: 'flex items-center justify-between bg-gray-50 px-4 py-2 border-b border-gray-200' }, [
         h('h4', { class: 'text-xs font-medium text-gray-500 uppercase tracking-wider', text: 'Image Candidates' }),
-        h('span', { class: 'text-xs text-gray-400', text: cands.length + ' evaluated by 4 critics' })
+        h('span', { class: 'text-xs text-gray-400', text: hasScores ? cands.length + ' evaluated by 4 critics' : cands.length + ' photos saved; scoring in progress or unavailable' })
       ]),
       tabs,
       panels
@@ -799,7 +898,7 @@
     }
     mount([
       h('div', { class: 'mb-4' }, [
-        h('a', { href: post.status === 'posted' ? '/posted' : '/', 'data-link': true, class: 'text-sm text-brand-600 hover:underline', text: '← Back' })
+      h('a', { href: post.status === 'posted' ? '/posted' : post.status === 'working' ? '/working' : '/drafts', 'data-link': true, class: 'text-sm text-brand-600 hover:underline', text: '← Back' })
       ]),
       draftCard(post)
     ]);
@@ -820,9 +919,9 @@
       try { data = await res.json(); } catch (e) { /* ignore */ }
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Pipeline failed (' + res.status + ')');
       if (data && data.id) {
-        await navigateTo('/posts/' + encodeURIComponent(data.id));
+        await navigateTo(data.status === 'working' ? '/working' : '/drafts');
       } else {
-        await navigateTo('/');
+        await navigateTo('/create');
       }
     });
   }
@@ -835,9 +934,9 @@
       if (!res.ok) throw new Error((data && (data.error || data.message)) || 'Pick failed (' + res.status + ')');
       closePhotoPicker();
       if (data && data.id) {
-        await navigateTo('/posts/' + encodeURIComponent(data.id));
+        await navigateTo('/drafts');
       } else {
-        await navigateTo('/');
+        await navigateTo('/create');
       }
     });
   }
@@ -865,20 +964,18 @@
     return withButton(btn, 'Generating...', async function () {
       var post = await apiJson('/api/posts/' + encodeURIComponent(postId) + '/generate-caption', { method: 'POST' });
       if (post) {
-        var block = document.getElementById('caption-block-' + postId);
-        if (block) {
-          block.replaceWith(captionSection(post, false));
-        }
+        if (window.location.pathname === '/working') await render();
+        else await navigateTo('/working');
       }
     });
   }
 
-  function discardPost(postId, btn) {
+  function discardPost(postId, status, btn) {
     if (!window.confirm('Discard this draft?')) return Promise.resolve();
     return withButton(btn, 'Discarding...', async function () {
       var res = await apiFetch('/api/posts/' + encodeURIComponent(postId), { method: 'DELETE' });
       if (!res.ok) throw new Error('Discard failed (' + res.status + ')');
-      await navigateTo('/');
+      await navigateTo(status === 'working' ? '/working' : '/drafts');
     });
   }
 
@@ -979,43 +1076,53 @@
       items[p].row.parentNode.insertBefore(errDetail, items[p].row.nextSibling);
     }
 
-    function markPending(p) {
-      items[p].spinner.className = 'publish-step-icon';
-      items[p].spinner.textContent = '○';
-      items[p].spinner.style.color = '#9ca3af';
-    }
-
-    // Sequential per-platform publish
-    var lastPost = null;
+    // Send all selected platforms together so the post only transitions to Posted
+    // after every requested platform succeeds.
     (async function () {
       try {
-        for (var i = 0; i < platforms.length; i++) {
-          var p = platforms[i];
-          var post = await apiJson(
-            '/api/pipeline/post/' + encodeURIComponent(postId),
-            Object.assign({ method: 'POST' }, jsonBody({ platforms: [p] })),
-            PIPELINE_BASE
-          );
-          lastPost = post;
-          markSuccess(p);
-        }
-        if (lastPost) replaceDraftCard(lastPost);
+        await apiJson(
+          '/api/pipeline/post/' + encodeURIComponent(postId),
+          Object.assign({ method: 'POST' }, jsonBody({ platforms: platforms })),
+          PIPELINE_BASE
+        );
+        platforms.forEach(markSuccess);
+        await navigateTo('/posted');
       } catch (err) {
         console.error(err);
-        var failedPlatform = platforms[i];
-        markError(failedPlatform, err.message || 'Something went wrong');
-        // Mark remaining platforms as skipped
-        for (var j = i + 1; j < platforms.length; j++) {
-          markPending(platforms[j]);
+        var published = new Set();
+        try {
+          var latestPost = await apiJson('/api/posts/' + encodeURIComponent(postId));
+          published = new Set((latestPost.publishedTo || []).map(function (record) { return record.platform; }));
+        } catch (readErr) {
+          console.error('Could not reload post after publish failure:', readErr);
         }
+
+        platforms.forEach(function (platform) {
+          if (published.has(platform)) markSuccess(platform);
+          else markError(platform, err.message || 'Something went wrong');
+        });
         if (btn) { btn.disabled = false; btn.textContent = original; }
-        // Re-enable unchecked boxes
         ['facebook', 'instagram'].forEach(function (key) {
           var box = document.getElementById('platform-' + postId + '-' + key);
-          if (box && !box.checked) box.disabled = false;
+          if (!box) return;
+          var alreadyPublished = published.has(key);
+          box.disabled = alreadyPublished;
+          if (alreadyPublished) box.checked = false;
+          else if (platforms.includes(key)) box.checked = true;
         });
       }
     })();
+  }
+
+  function publishAdditionalPlatform(postId, platform, btn) {
+    return withButton(btn, 'Posting...', async function () {
+      await apiJson(
+        '/api/pipeline/post/' + encodeURIComponent(postId),
+        Object.assign({ method: 'POST' }, jsonBody({ platforms: [platform] })),
+        PIPELINE_BASE
+      );
+      await navigateTo('/posted');
+    });
   }
 
   // ---------------------------------------------------------------------------

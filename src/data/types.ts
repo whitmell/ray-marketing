@@ -49,7 +49,7 @@ export interface Post {
   id: string;
   photoFilename: string;
   caption: string | null;
-  status: 'draft' | 'posted' | 'discarded';
+  status: 'draft' | 'working' | 'posted' | 'discarded';
   primaryTheme: ThemeCategory;
   createdAt: string;
   postedAt: string | null;

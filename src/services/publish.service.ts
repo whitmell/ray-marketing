@@ -14,6 +14,8 @@ interface MetaErrorDetail {
 interface MetaApiResponse {
   id?: string;
   access_token?: string;
+  status?: string;
+  status_code?: 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED';
   error?: MetaErrorDetail;
 }
 
@@ -94,6 +96,68 @@ async function metaPost(
   return data;
 }
 
+async function metaGet(
+  endpoint: string,
+  params: Record<string, string>,
+  token: string
+): Promise<MetaApiResponse> {
+  const url = new URL(`${META_BASE()}${endpoint}`);
+  Object.entries({ ...params, access_token: token }).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  console.log(`[Meta] GET endpoint=${endpoint} apiVersion=${config.metaApiVersion}`);
+
+  const response = await fetch(url);
+  const text = await response.text();
+  let data: MetaApiResponse;
+  try {
+    data = JSON.parse(text) as MetaApiResponse;
+  } catch {
+    console.error(`[Meta] Non-JSON response (${response.status}):`, text.slice(0, 500));
+    throw new Error(`Meta API returned non-JSON response (${response.status})`);
+  }
+
+  if (!response.ok || data.error) {
+    console.error(`[Meta] Error response status=${response.status}`);
+    console.error(`[Meta] Error body=${JSON.stringify(data)}`);
+    const err = data.error;
+    const parts = [
+      `Meta API error: ${err?.message ?? `HTTP ${response.status}`}`,
+      err?.type ? `type=${err.type}` : null,
+      err?.code !== undefined ? `code=${err.code}` : null,
+      err?.error_subcode ? `subcode=${err.error_subcode}` : null,
+      err?.fbtrace_id ? `trace=${err.fbtrace_id}` : null,
+    ].filter(Boolean);
+    throw new Error(parts.join(' | '));
+  }
+
+  return data;
+}
+
+async function waitForInstagramContainer(containerId: string, token: string): Promise<void> {
+  const timeoutAt = Date.now() + 60_000;
+  let delayMs = 1_000;
+
+  while (Date.now() < timeoutAt) {
+    const container = await metaGet(`/${containerId}`, { fields: 'status_code,status' }, token);
+    if (container.status_code === 'FINISHED') return;
+    if (container.status_code === 'ERROR' || container.status_code === 'EXPIRED') {
+      throw new Error(
+        `Instagram media container ${containerId} is ${container.status_code}`
+        + (container.status ? `: ${container.status}` : ''),
+      );
+    }
+    if (container.status_code !== 'IN_PROGRESS') {
+      throw new Error(`Unexpected Instagram media container status: ${container.status_code ?? 'missing'}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    delayMs = Math.min(delayMs * 1.5, 5_000);
+  }
+
+  throw new Error(`Instagram media container ${containerId} was not ready to publish within 60 seconds`);
+}
+
 export async function publishToFacebook(
   caption: string,
   imageUrl: string
@@ -132,6 +196,8 @@ export async function publishToInstagram(
   if (!container.id) {
     throw new Error('Instagram container creation returned no ID');
   }
+
+  await waitForInstagramContainer(container.id, token);
 
   const published = await metaPost(`/${config.instagramUserId}/media_publish`, {
     creation_id: container.id,

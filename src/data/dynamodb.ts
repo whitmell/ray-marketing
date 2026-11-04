@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
+  DeleteCommand,
   GetCommand,
   PutCommand,
   QueryCommand,
@@ -65,19 +66,25 @@ export async function readPost(id: string): Promise<Post | null> {
   return (result.Item as Post | undefined) ?? null;
 }
 
-export async function getCurrentDraft(): Promise<Post | null> {
+export async function getCurrentPost(status: Post['status']): Promise<Post | null> {
   const result = await getClient().send(
     new QueryCommand({
       TableName: config.dynamoTablePosts,
       IndexName: STATUS_INDEX,
       KeyConditionExpression: '#s = :status',
       ExpressionAttributeNames: { '#s': 'status' },
-      ExpressionAttributeValues: { ':status': 'draft' },
+      ExpressionAttributeValues: { ':status': status },
       ScanIndexForward: false,
       Limit: 1,
     }),
   );
   return (result.Items?.[0] as Post | undefined) ?? null;
+}
+
+export async function deletePost(id: string): Promise<void> {
+  await getClient().send(
+    new DeleteCommand({ TableName: config.dynamoTablePosts, Key: { id } }),
+  );
 }
 
 export async function writePost(post: Post): Promise<void> {

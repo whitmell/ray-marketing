@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Business Suite Content Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0064e0',
+              600: '#1877f2',
+              700: '#0c63d4'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Top App Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-sm shadow-blue-500/20">
+          <i class="fa-solid fa-chart-line text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-900 leading-tight">Meta Content Explorer</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">Query Facebook & Instagram Graph API Insights</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="toggleMockBtn" onclick="toggleDemoMode()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition shadow-2xs">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+          <span>Load Mock Demo</span>
+        </button>
+
+        <button onclick="toggleSettingsModal(true)" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition shadow-xs">
+          <i class="fa-solid fa-key"></i>
+          <span class="hidden sm:inline">API</span> Credentials
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+
+    <!-- Active Credentials / Status Bar Banner -->
+    <div id="credentialStatusCard" class="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div id="statusDot" class="w-3 h-3 rounded-full bg-amber-400 ring-4 ring-amber-50"></div>
+        <div>
+          <div class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <span id="statusLabel">No Credentials Set</span>
+            <span id="demoBadge" class="hidden text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">Demo Mode</span>
+          </div>
+          <p id="statusSubtext" class="text-xs text-slate-500">Provide a Page Access Token & ID to fetch live data from Graph API.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <button id="fetchLiveBtn" onclick="fetchLiveMetaContent()" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 active:scale-98 transition shadow-xs disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+          <span>Fetch Data</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Alert / Toast Banner Container -->
+    <div id="alertContainer" class="hidden"></div>
+
+    <!-- Content Workspace -->
+    <div class="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden flex flex-col">
+
+      <!-- Navigation Tabs (mirroring Meta Business Suite: Published, Scheduled, Drafts, etc.) -->
+      <div class="border-b border-slate-200 px-4 pt-3 flex flex-wrap gap-1 sm:gap-2">
+        <button class="px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 focus:outline-none">Published</button>
+        <button class="px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed" title="Not available in this query scope">Scheduled</button>
+        <button class="px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed" title="Not available in this query scope">Drafts</button>
+        <button class="px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed hidden md:block" title="Not available in this query scope">Expiring</button>
+        <button class="px-3 py-2 text-sm font-medium text-slate-400 cursor-not-allowed hidden md:block" title="Not available in this query scope">Expired</button>
+      </div>
+
+      <!-- Controls & Filter Toolbar -->
+      <div class="p-4 border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-50/50">
+        <!-- Platform Tabs -->
+        <div class="inline-flex rounded-lg p-1 bg-slate-200/60 self-start">
+          <button onclick="setPlatformFilter('all')" id="filter-all" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-2xs transition">
+            All Posts
+          </button>
+          <button onclick="setPlatformFilter('facebook')" id="filter-facebook" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+            <i class="fa-brands fa-facebook text-blue-600"></i> Facebook
+          </button>
+          <button onclick="setPlatformFilter('instagram')" id="filter-instagram" class="px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+            <i class="fa-brands fa-instagram text-pink-600"></i> Instagram
+          </button>
+        </div>
+
+        <!-- Search Bar and Count info -->
+        <div class="flex items-center gap-3">
+          <div class="relative flex-1 sm:w-80">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search by caption or post ID..." class="w-full pl-9 pr-8 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition">
+            <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+              <i class="fa-solid fa-circle-xmark"></i>
+            </button>
+          </div>
+
+          <div class="text-xs font-medium text-slate-500 whitespace-nowrap">
+            Showing <span id="postCount" class="font-bold text-slate-800">0</span> posts
+          </div>
+        </div>
+      </div>
+
+      <!-- Posts Table -->
+      <div class="overflow-x-auto min-h-[360px] relative">
+        <!-- Loading Overlay -->
+        <div id="tableLoader" class="hidden absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center z-20 space-y-3">
+          <div class="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-xs font-semibold text-slate-600" id="loadingMessage">Querying Meta Graph API endpoints...</p>
+        </div>
+
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold tracking-wider select-none uppercase text-[10px]">
+              <th scope="col" class="py-3 px-4 w-10 text-center">
+                <input type="checkbox" disabled class="rounded border-slate-300 opacity-60">
+              </th>
+              <th scope="col" class="py-3 px-4 min-w-[280px]">Title / Post</th>
+              <th scope="col" class="py-3 px-4 whitespace-nowrap cursor-pointer hover:text-slate-900" onclick="toggleSort('date')">
+                Date published <i class="fa-solid fa-arrow-down-short-wide ml-1 text-slate-400" id="sortDateIcon"></i>
+              </th>
+              <th scope="col" class="py-3 px-4 whitespace-nowrap">Status</th>
+              <th scope="col" class="py-3 px-4 text-right whitespace-nowrap cursor-pointer hover:text-slate-900" onclick="toggleSort('reach')">
+                Reach <i class="fa-solid fa-info-circle text-[9px] text-slate-400" title="Unique accounts reached"></i>
+              </th>
+              <th scope="col" class="py-3 px-4 text-right whitespace-nowrap cursor-pointer hover:text-slate-900" onclick="toggleSort('views')">
+                Views <i class="fa-solid fa-info-circle text-[9px] text-slate-400" title="Total impressions or video views"></i>
+              </th>
+              <th scope="col" class="py-3 px-4 text-right whitespace-nowrap cursor-pointer hover:text-slate-900" onclick="toggleSort('viewers')">
+                Viewers <i class="fa-solid fa-info-circle text-[9px] text-slate-400" title="Unique viewers"></i>
+              </th>
+              <th scope="col" class="py-3 px-4 text-right whitespace-nowrap cursor-pointer hover:text-slate-900" onclick="toggleSort('follows')">
+                Follows <i class="fa-solid fa-info-circle text-[9px] text-slate-400" title="Follows generated from this post"></i>
+              </th>
+              <th scope="col" class="py-3 px-4 text-center w-16">Link</th>
+            </tr>
+          </thead>
+          <tbody id="postsTableBody" class="divide-y divide-slate-100 text-slate-700 font-normal">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+
+        <!-- Empty State Container -->
+        <div id="emptyState" class="hidden p-12 text-center flex flex-col items-center justify-center">
+          <div class="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+            <i class="fa-regular fa-folder-open text-2xl"></i>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-800 mb-1">No posts to display</h3>
+          <p class="text-xs text-slate-500 max-w-sm mb-4">Set your API Token in Credentials and click 'Fetch Data', or explore with Mock Demo data.</p>
+          <div class="flex gap-2">
+            <button onclick="toggleDemoMode()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+              Load Demo Posts
+            </button>
+            <button onclick="toggleSettingsModal(true)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition">
+              Open Credentials
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="p-3 bg-slate-50 border-t border-slate-200 text-slate-500 text-[11px] flex flex-col sm:flex-row items-center justify-between gap-2">
+        <span>Queries Meta Graph API <code class="font-mono bg-slate-200/70 px-1 py-0.5 rounded text-[10px]">v21.0</code></span>
+        <span>Insights include unique impressions, views, reach, and follows where available.</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Configuration / Credentials Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-2xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+            <i class="fa-solid fa-key text-sm"></i>
+          </div>
+          <h3 class="text-base font-bold text-slate-900">API Credentials</h3>
+        </div>
+        <button onclick="toggleSettingsModal(false)" class="text-slate-400 hover:text-slate-600 transition p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="credentialsForm" onsubmit="saveCredentials(event)" class="p-6 space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" for="inputPageToken">
+            System User Access Token <span class="text-rose-500">*</span>
+          </label>
+          <div class="relative">
+            <input type="password" id="inputPageToken" required placeholder="EAA... (Permanent System User Token)" class="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+            <button type="button" onclick="toggleTokenVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <i class="fa-regular fa-eye" id="tokenEyeIcon"></i>
+            </button>
+          </div>
+          <div class="flex items-center justify-between mt-1.5">
+            <p class="text-[11px] text-slate-500">Must have <code class="bg-slate-100 px-1 py-0.5 rounded">pages_read_engagement</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">read_insights</code>, <code class="bg-slate-100 px-1 py-0.5 rounded">instagram_manage_insights</code>.</p>
+            <button type="button" onclick="fetchAccountsFromToken()" id="discoverPagesBtn" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition border border-blue-200">
+              <i class="fa-solid fa-list-check text-[11px]"></i> Load Pages
+            </button>
+          </div>
+        </div>
+
+        <!-- Discovered Accounts Dropdown Selector -->
+        <div id="accountSelectorWrapper" class="hidden">
+          <label class="block font-semibold text-slate-700 mb-1" for="accountSelect">
+            Select Detected Page & Linked Instagram
+          </label>
+          <select id="accountSelect" onchange="onAccountSelected()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-800 text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white">
+            <option value="">-- Choose an available Page --</option>
+          </select>
+          <p class="mt-1 text-[11px] text-slate-500">Automatically extracts Page token and linked Instagram account.</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" for="inputPageId">
+            Facebook Page ID <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="inputPageId" required placeholder="e.g. 104829104829104" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+          <p class="mt-1 text-[11px] text-slate-500">Your Facebook Page numeric ID or username assigned to this System User.</p>
+        </div>
+
+        <!-- Hidden or Auto-resolved Page Token field -->
+        <input type="hidden" id="resolvedPageToken" value="">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" for="inputIgId">
+            Instagram Business Account ID <span class="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <input type="text" id="inputIgId" placeholder="e.g. 17841400000000000" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+          <p class="mt-1 text-[11px] text-slate-500">If blank, will attempt to detect the linked IG Business account from the selected Page.</p>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="saveLocalCheckbox" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          <label for="saveLocalCheckbox" class="text-slate-600">Save credentials securely in your browser's <code class="text-[10px] bg-slate-100 px-1">localStorage</code></label>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" onclick="clearSavedCredentials()" class="text-rose-600 hover:text-rose-700 font-semibold hover:underline">
+            Clear Stored
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="toggleSettingsModal(false)" class="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">
+              Cancel
+            </button>
+            <button type="submit" class="px-4 py-2 font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-xs">
+              Save & Apply
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let postsData = [];
+    let currentFilter = 'all'; // 'all' | 'facebook' | 'instagram'
+    let searchQuery = '';
+    let sortField = 'date';
+    let sortDirection = 'desc'; // 'asc' | 'desc'
+    let isDemoMode = false;
+
+    // Local Storage keys
+    const STORAGE_KEY = 'meta_suite_creds_v1';
+    let availableAccounts = [];
+
+    // Mock Data simulating the screenshot
+    const MOCK_POSTS = [
+      {
+        id: "fb_1001",
+        platform: "instagram",
+        authorName: "raymatthewsphotography",
+        title: "**Elizabeth II & Moonrise** The historic Elizabeth II at Roanoke Island Festival Park bathed in full moonlight...",
+        caption: "**Elizabeth II & Moonrise** The historic Elizabeth II at Roanoke Island Festival Park bathed in full moonlight...",
+        publishedDate: "2026-11-03T23:19:00Z",
+        formattedDate: "Tue Nov 3, 6:19pm",
+        thumbnail: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo",
+        status: "Published",
+        reach: null,
+        views: 0,
+        viewers: null,
+        follows: 0,
+        permalink: "https://instagram.com"
+      },
+      {
+        id: "fb_1002",
+        platform: "facebook",
+        authorName: "Ray Matthews Photography",
+        title: "**Elizabeth II & Moonrise** The historic Elizabeth II...",
+        caption: "**Elizabeth II & Moonrise** The historic Elizabeth II...",
+        publishedDate: "2026-11-03T22:32:00Z",
+        formattedDate: "Tue Nov 3, 5:32pm",
+        thumbnail: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo",
+        status: "Published",
+        reach: 1,
+        views: 1,
+        viewers: 1,
+        follows: 0,
+        permalink: "https://facebook.com"
+      },
+      {
+        id: "fb_1003",
+        platform: "instagram",
+        authorName: "raymatthewsphotography",
+        title: "\"Crabtree Falls in the Blue Ridge\" Waterfall rushing through vibrant autumn foliage...",
+        caption: "\"Crabtree Falls in the Blue Ridge\" Waterfall rushing through vibrant autumn foliage...",
+        publishedDate: "2026-10-21T12:56:00Z",
+        formattedDate: "Wed Oct 21, 8:56am",
+        thumbnail: "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo",
+        status: "Published",
+        reach: 133,
+        views: 224,
+        viewers: null,
+        follows: 0,
+        permalink: "https://instagram.com"
+      },
+      {
+        id: "fb_1004",
+        platform: "facebook",
+        authorName: "Ray Matthews Photography",
+        badge: "High-quality creative",
+        title: "\"Crabtree Falls in the Blue Ridge\" Water cascading down rocks...",
+        caption: "\"Crabtree Falls in the Blue Ridge\" Water cascading down rocks...",
+        publishedDate: "2026-10-20T20:43:00Z",
+        formattedDate: "Tue Oct 20, 4:43pm",
+        thumbnail: "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo",
+        status: "Published",
+        reach: 185,
+        views: 224,
+        viewers: 185,
+        follows: 0,
+        permalink: "https://facebook.com"
+      },
+      {
+        id: "fb_1005",
+        platform: "facebook",
+        authorName: "Ray Matthews Photography",
+        title: "\"Engelhard Sunrise\" Dawn breaks over peaceful marsh waters...",
+        caption: "\"Engelhard Sunrise\" Dawn breaks over peaceful marsh waters...",
+        publishedDate: "2026-09-14T12:45:00Z",
+        formattedDate: "Mon Sep 14, 8:45am",
+        thumbnail: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo • Crossposted",
+        status: "Published",
+        reach: 2474,
+        views: 4305,
+        viewers: 2448,
+        follows: 0,
+        permalink: "https://facebook.com"
+      },
+      {
+        id: "fb_1006",
+        platform: "instagram",
+        authorName: "raymatthewsphotography",
+        title: "\"Snowy Egret in Breeding Plumage\" A majestic bird in marsh sanctuary...",
+        caption: "\"Snowy Egret in Breeding Plumage\" A majestic bird in marsh sanctuary...",
+        publishedDate: "2026-08-24T14:38:00Z",
+        formattedDate: "Mon Aug 24, 10:38am",
+        thumbnail: "https://images.unsplash.com/photo-1544860707-c352cc5a92e3?w=150&auto=format&fit=crop&q=60",
+        postType: "Photo • Crossposted",
+        status: "Published",
+        reach: 481,
+        views: 796,
+        viewers: 476,
+        follows: 0,
+        permalink: "https://instagram.com"
+      }
+    ];
+
+    // Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      loadStoredCredentials();
+      if (!getCredentials().token) {
+        // Automatically show demo preview if no token is stored yet
+        loadMockData();
+      } else {
+        renderTable();
+      }
+    });
+
+    // Helper: Retrieve Saved Credentials
+    function getCredentials() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error("Storage access error", e);
+      }
+      return {
+        token: document.getElementById('inputPageToken').value.trim(),
+        pageId: document.getElementById('inputPageId').value.trim(),
+        igId: document.getElementById('inputIgId').value.trim(),
+        pageToken: document.getElementById('resolvedPageToken').value.trim()
+      };
+    }
+
+    function loadStoredCredentials() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const creds = JSON.parse(stored);
+          document.getElementById('inputPageToken').value = creds.token || '';
+          document.getElementById('inputPageId').value = creds.pageId || '';
+          document.getElementById('inputIgId').value = creds.igId || '';
+          document.getElementById('resolvedPageToken').value = creds.pageToken || '';
+          updateCredentialStatusUI(creds);
+        }
+      } catch (err) {
+        console.warn("Could not read credentials from localStorage", err);
+      }
+    }
+
+    function updateCredentialStatusUI(creds) {
+      const dot = document.getElementById('statusDot');
+      const label = document.getElementById('statusLabel');
+      const sub = document.getElementById('statusSubtext');
+      const badge = document.getElementById('demoBadge');
+
+      if (isDemoMode) {
+        badge.classList.remove('hidden');
+        dot.className = "w-3 h-3 rounded-full bg-indigo-500 ring-4 ring-indigo-50";
+        label.textContent = "Showing Mock Data";
+        sub.textContent = "Click 'API Credentials' to plug in your System User token & fetch live posts.";
+        return;
+      }
+
+      badge.classList.add('hidden');
+      if (creds && creds.token && creds.pageId) {
+        dot.className = "w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-50";
+        label.textContent = `Page Connected: ${creds.pageId}`;
+        sub.textContent = creds.igId ? `Instagram Connected: ${creds.igId}` : "System User configured (IG auto-discovery enabled)";
+      } else {
+        dot.className = "w-3 h-3 rounded-full bg-amber-400 ring-4 ring-amber-50";
+        label.textContent = "No Credentials Configured";
+        sub.textContent = "Provide your System User Access Token and select a Facebook Page.";
+      }
+    }
+
+    // Helper: Query /me/accounts using System User Token to list all assigned Pages
+    async function fetchAccountsFromToken() {
+      const token = document.getElementById('inputPageToken').value.trim();
+      const btn = document.getElementById('discoverPagesBtn');
+
+      if (!token) {
+        showAlert('Please paste your System User Access Token first.', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin text-[11px]"></i> Loading...`;
+
+      try {
+        const url = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name}&access_token=${token}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        if (data.error) {
+          throw new Error(data.error.message || 'Failed to query /me/accounts');
+        }
+
+        availableAccounts = data.data || [];
+
+        if (availableAccounts.length === 0) {
+          showAlert('Token is valid, but no assigned Facebook Pages were returned. Ensure the System User has been assigned asset permissions in Meta Business Manager.', 'info');
+          return;
+        }
+
+        const selector = document.getElementById('accountSelect');
+        selector.innerHTML = `<option value="">-- Select a Page (${availableAccounts.length} found) --</option>`;
+
+        availableAccounts.forEach((acc, idx) => {
+          const igInfo = acc.instagram_business_account ? ` (IG: @${acc.instagram_business_account.username || acc.instagram_business_account.id})` : ' (No linked IG)';
+          const opt = document.createElement('option');
+          opt.value = idx;
+          opt.textContent = `${acc.name} (ID: ${acc.id})${igInfo}`;
+          selector.appendChild(opt);
+        });
+
+        document.getElementById('accountSelectorWrapper').classList.remove('hidden');
+        showAlert(`Found ${availableAccounts.length} accessible Page(s) for this System User. Select one from the dropdown.`, 'success');
+
+        // Automatically select the first account if none is set
+        if (availableAccounts.length === 1) {
+          selector.value = 0;
+          onAccountSelected();
+        }
+
+      } catch (err) {
+        console.error("Account discovery failed:", err);
+        showAlert(`Failed to fetch pages: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-list-check text-[11px]"></i> Load Pages`;
+      }
+    }
+
+    function onAccountSelected() {
+      const selector = document.getElementById('accountSelect');
+      const selectedIndex = selector.value;
+      if (selectedIndex === "") return;
+
+      const account = availableAccounts[Number(selectedIndex)];
+      if (!account) return;
+
+      document.getElementById('inputPageId').value = account.id;
+      document.getElementById('resolvedPageToken').value = account.access_token || '';
+
+      if (account.instagram_business_account && account.instagram_business_account.id) {
+        document.getElementById('inputIgId').value = account.instagram_business_account.id;
+      } else {
+        document.getElementById('inputIgId').value = '';
+      }
+    }
+
+    function saveCredentials(e) {
+      e.preventDefault();
+      const token = document.getElementById('inputPageToken').value.trim();
+      const pageId = document.getElementById('inputPageId').value.trim();
+      const igId = document.getElementById('inputIgId').value.trim();
+      const pageToken = document.getElementById('resolvedPageToken').value.trim();
+      const saveLocal = document.getElementById('saveLocalCheckbox').checked;
+
+      const creds = { token, pageId, igId, pageToken };
+
+      if (saveLocal) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(creds));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+
+      isDemoMode = false;
+      updateCredentialStatusUI(creds);
+      toggleSettingsModal(false);
+      showAlert('Credentials saved! Click "Fetch Data" to query.', 'success');
+    }
+
+    function clearSavedCredentials() {
+      localStorage.removeItem(STORAGE_KEY);
+      document.getElementById('inputPageToken').value = '';
+      document.getElementById('inputPageId').value = '';
+      document.getElementById('inputIgId').value = '';
+      document.getElementById('resolvedPageToken').value = '';
+      document.getElementById('accountSelectorWrapper').classList.add('hidden');
+      availableAccounts = [];
+      updateCredentialStatusUI(null);
+      toggleSettingsModal(false);
+      showAlert('Stored credentials cleared.', 'info');
+    }
+
+    // Modal Control
+    function toggleSettingsModal(show) {
+      const modal = document.getElementById('settingsModal');
+      if (show) {
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+
+    function toggleTokenVisibility() {
+      const input = document.getElementById('inputPageToken');
+      const icon = document.getElementById('tokenEyeIcon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-regular fa-eye';
+      }
+    }
+
+    // Demo Mode Handler
+    function toggleDemoMode() {
+      isDemoMode = true;
+      loadMockData();
+      showAlert('Loaded demo posts matching Meta Business Suite.', 'info');
+    }
+
+    function loadMockData() {
+      postsData = [...MOCK_POSTS];
+      updateCredentialStatusUI(getCredentials());
+      applyFilters();
+    }
+
+    // Fetch Live Graph API Data
+    async function fetchLiveMetaContent() {
+      const creds = getCredentials();
+
+      if (!creds.token || !creds.pageId) {
+        showAlert('Please set your System User Access Token and Facebook Page ID first.', 'error');
+        toggleSettingsModal(true);
+        return;
+      }
+
+      setLoading(true, "Resolving Page token and permissions...");
+      isDemoMode = false;
+      postsData = [];
+
+      try {
+        const systemToken = creds.token;
+        const pageId = creds.pageId;
+        let igId = creds.igId;
+        let pageToken = creds.pageToken;
+
+        // Ensure we have a Page Access Token for insights query (System Users can exchange or query directly)
+        if (!pageToken) {
+          try {
+            const pageTokenResp = await fetch(`https://graph.facebook.com/v21.0/${pageId}?fields=access_token,instagram_business_account{id}&access_token=${systemToken}`);
+            const pageTokenData = await pageTokenResp.json();
+            if (pageTokenData.access_token) {
+              pageToken = pageTokenData.access_token;
+            } else {
+              pageToken = systemToken; // Fallback to system token
+            }
+            if (!igId && pageTokenData.instagram_business_account && pageTokenData.instagram_business_account.id) {
+              igId = pageTokenData.instagram_business_account.id;
+            }
+          } catch (e) {
+            pageToken = systemToken;
+          }
+        }
+
+        // Auto-detect Instagram Business ID if not provided
+        if (!igId) {
+          try {
+            setLoading(true, "Checking for linked Instagram Business Account...");
+            const igLookupResp = await fetch(`https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account&access_token=${pageToken || systemToken}`);
+            const igLookup = await igLookupResp.json();
+            if (igLookup.instagram_business_account && igLookup.instagram_business_account.id) {
+              igId = igLookup.instagram_business_account.id;
+              console.log("Auto-detected IG Business Account ID:", igId);
+            }
+          } catch (e) {
+            console.warn("Could not auto-detect linked IG account", e);
+          }
+        }
+
+        // 1. Fetch Facebook Posts
+        setLoading(true, "Fetching Facebook published posts...");
+        const fbUrl = `https://graph.facebook.com/v21.0/${pageId}/published_posts?fields=id,message,created_time,status_type,full_picture,permalink_url&limit=25&access_token=${pageToken}`;
+        const fbResp = await fetch(fbUrl);
+        const fbResult = await fbResp.json();
+
+        if (fbResult.error) {
+          throw new Error(`Facebook API Error: ${fbResult.error.message} (Code: ${fbResult.error.code})`);
+        }
+
+        const fbPosts = fbResult.data || [];
+
+        // Fetch insights for each Facebook post in parallel
+        setLoading(true, `Fetching metrics for ${fbPosts.length} Facebook posts...`);
+        const fbPostPromises = fbPosts.map(async (p) => {
+          let reach = null;
+          let views = null;
+          let viewers = null;
+
+          try {
+            const insightUrl = `https://graph.facebook.com/v21.0/${p.id}/insights?metric=post_impressions_unique,post_impressions,post_video_views&access_token=${pageToken}`;
+            const iResp = await fetch(insightUrl);
+            const iData = await iResp.json();
+
+            if (iData && iData.data) {
+              iData.data.forEach(metric => {
+                const val = metric.values && metric.values[0] ? metric.values[0].value : 0;
+                if (metric.name === 'post_impressions_unique') {
+                  reach = val;
+                  viewers = val;
+                }
+                if (metric.name === 'post_impressions') {
+                  views = val;
+                }
+                if (metric.name === 'post_video_views' && val > 0) {
+                  views = val;
+                }
+              });
+            }
+          } catch (err) {
+            console.warn(`Could not load insights for FB post ${p.id}`, err);
+          }
+
+          return {
+            id: p.id,
+            platform: 'facebook',
+            authorName: 'Facebook Page',
+            title: p.message ? p.message.slice(0, 70) + (p.message.length > 70 ? '...' : '') : 'Photo / Update',
+            caption: p.message || 'No caption',
+            publishedDate: p.created_time,
+            formattedDate: formatDate(p.created_time),
+            thumbnail: p.full_picture || 'https://placehold.co/100x100/e2e8f0/475569?text=Post',
+            postType: formatPostType(p.status_type),
+            status: 'Published',
+            reach: reach,
+            views: views,
+            viewers: viewers,
+            follows: 0,
+            permalink: p.permalink_url || `https://facebook.com/${p.id}`
+          };
+        });
+
+        const resolvedFbPosts = await Promise.all(fbPostPromises);
+        postsData.push(...resolvedFbPosts);
+
+        // 2. Fetch Instagram Media (if ID is available)
+        if (igId) {
+          setLoading(true, "Fetching Instagram posts & insights...");
+          // Either the System User Token or the Page Token can be used for connected IG accounts
+          const igToken = systemToken || pageToken;
+          const igUrl = `https://graph.facebook.com/v21.0/${igId}/media?fields=id,caption,media_type,timestamp,permalink,thumbnail_url,media_url&limit=25&access_token=${igToken}`;
+          const igResp = await fetch(igUrl);
+          const igResult = await igResp.json();
+
+          if (igResult.data) {
+            const igPosts = igResult.data;
+            const igPromises = igPosts.map(async (m) => {
+              let reach = null;
+              let views = null;
+              let follows = 0;
+
+              try {
+                const metricList = (m.media_type === 'VIDEO' || m.media_type === 'REELS')
+                  ? 'reach,views,follows'
+                  : 'reach,impressions,follows';
+
+                const igInsightUrl = `https://graph.facebook.com/v21.0/${m.id}/insights?metric=${metricList}&access_token=${igToken}`;
+                const iResp = await fetch(igInsightUrl);
+                const iData = await iResp.json();
+
+                if (iData && iData.data) {
+                  iData.data.forEach(metric => {
+                    const val = metric.values && metric.values[0] ? metric.values[0].value : 0;
+                    if (metric.name === 'reach') reach = val;
+                    if (metric.name === 'views' || metric.name === 'impressions') views = val;
+                    if (metric.name === 'follows') follows = val;
+                  });
+                }
+              } catch (err) {
+                console.warn(`Could not load insights for IG media ${m.id}`, err);
+              }
+
+              return {
+                id: m.id,
+                platform: 'instagram',
+                authorName: 'Instagram',
+                title: m.caption ? m.caption.slice(0, 70) + (m.caption.length > 70 ? '...' : '') : 'Media Post',
+                caption: m.caption || 'No caption',
+                publishedDate: m.timestamp,
+                formattedDate: formatDate(m.timestamp),
+                thumbnail: m.thumbnail_url || m.media_url || 'https://placehold.co/100x100/fce7f3/db2777?text=IG',
+                postType: m.media_type ? m.media_type.charAt(0) + m.media_type.slice(1).toLowerCase() : 'Media',
+                status: 'Published',
+                reach: reach,
+                views: views,
+                viewers: reach,
+                follows: follows,
+                permalink: m.permalink || `https://instagram.com`
+              };
+            });
+
+            const resolvedIgPosts = await Promise.all(igPromises);
+            postsData.push(...resolvedIgPosts);
+          }
+        }
+
+        updateCredentialStatusUI(creds);
+        applyFilters();
+        showAlert(`Successfully loaded ${postsData.length} published posts with insights!`, 'success');
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        showAlert(err.message || 'An error occurred while fetching from Meta Graph API.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // UI Formatting Helpers
+    function formatDate(isoStr) {
+      if (!isoStr) return '--';
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return isoStr;
+      }
+    }
+
+    function formatNumber(val) {
+      if (val === null || val === undefined || isNaN(val)) return '--';
+      return Number(val).toLocaleString();
+    }
+
+    function formatPostType(type) {
+      if (!type) return 'Photo';
+      if (type === 'added_photos' || type === 'mobile_status_update') return 'Photo';
+      if (type === 'added_video') return 'Video';
+      if (type === 'shared_story') return 'Link';
+      return type.replace(/_/g, ' ');
+    }
+
+    // Filter, Search, and Sort Logic
+    function setPlatformFilter(filter) {
+      currentFilter = filter;
+      ['all', 'facebook', 'instagram'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (f === filter) {
+          btn.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-2xs transition";
+        } else {
+          btn.className = "px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5";
+        }
+      });
+      applyFilters();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      searchQuery = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      applyFilters();
+    }
+
+    function applyFilters() {
+      searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (searchQuery) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+
+      let filtered = postsData.filter(post => {
+        // Platform filter
+        if (currentFilter !== 'all' && post.platform !== currentFilter) {
+          return false;
+        }
+        // Search filter
+        if (searchQuery) {
+          const matchCaption = (post.caption || '').toLowerCase().includes(searchQuery);
+          const matchId = (post.id || '').toLowerCase().includes(searchQuery);
+          const matchAuthor = (post.authorName || '').toLowerCase().includes(searchQuery);
+          if (!matchCaption && !matchId && !matchAuthor) return false;
+        }
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        let valA, valB;
+        if (sortField === 'date') {
+          valA = new Date(a.publishedDate || 0).getTime();
+          valB = new Date(b.publishedDate || 0).getTime();
+        } else {
+          valA = a[sortField] !== null && a[sortField] !== undefined ? a[sortField] : -1;
+          valB = b[sortField] !== null && b[sortField] !== undefined ? b[sortField] : -1;
+        }
+
+        if (sortDirection === 'asc') {
+          return valA > valB ? 1 : -1;
+        } else {
+          return valA < valB ? 1 : -1;
+        }
+      });
+
+      renderTable(filtered);
+    }
+
+    function toggleSort(field) {
+      if (sortField === field) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        sortField = field;
+        sortDirection = 'desc';
+      }
+
+      // Update icon visual
+      const icon = document.getElementById('sortDateIcon');
+      if (icon) {
+        if (sortField === 'date') {
+          icon.className = sortDirection === 'asc' ? 'fa-solid fa-arrow-up-short-wide ml-1 text-blue-600' : 'fa-solid fa-arrow-down-short-wide ml-1 text-blue-600';
+        } else {
+          icon.className = 'fa-solid fa-arrow-down-short-wide ml-1 text-slate-400';
+        }
+      }
+
+      applyFilters();
+    }
+
+    // Render Table View matching Meta Business Suite
+    function renderTable(posts = postsData) {
+      const tbody = document.getElementById('postsTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const countLabel = document.getElementById('postCount');
+
+      countLabel.textContent = posts.length;
+
+      if (!posts || posts.length === 0) {
+        tbody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      tbody.innerHTML = posts.map(post => {
+        const isInstagram = post.platform === 'instagram';
+        const platformBadgeIcon = isInstagram 
+          ? `<i class="fa-brands fa-instagram text-[13px] text-pink-600"></i>`
+          : `<i class="fa-brands fa-facebook text-[13px] text-blue-600"></i>`;
+
+        return `
+          <tr class="hover:bg-slate-50/80 transition-colors group">
+            <!-- Row Checkbox -->
+            <td class="py-3 px-4 text-center align-middle">
+              <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+            </td>
+
+            <!-- Title & Media Snippet -->
+            <td class="py-3 px-4">
+              <div class="flex items-start gap-3">
+                <!-- Thumbnail with platform overlay icon -->
+                <div class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
+                  <img src="${post.thumbnail}" 
+                       alt="Thumbnail" 
+                       class="w-full h-full object-cover" 
+                       onerror="this.onerror=null;this.src='https://placehold.co/100x100/e2e8f0/475569?text=Post'">
+                  <div class="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-xs">
+                    ${platformBadgeIcon}
+                  </div>
+                </div>
+
+                <!-- Text Details & Boost Button -->
+                <div class="flex-1 min-w-0 pr-2">
+                  ${post.badge ? `<span class="inline-block px-1.5 py-0.5 mb-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded">${post.badge}</span>` : ''}
+                  <p class="font-medium text-slate-800 text-xs truncate max-w-sm" title="${escapeHtml(post.caption)}">
+                    ${escapeHtml(post.title)}
+                  </p>
+                  <div class="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
+                    <span class="flex items-center gap-1">
+                      <i class="fa-regular fa-image text-[10px]"></i>
+                      ${post.postType}
+                    </span>
+                    <span>•</span>
+                    <span class="truncate max-w-[120px]" title="${escapeHtml(post.authorName)}">${escapeHtml(post.authorName)}</span>
+                  </div>
+                </div>
+
+                <!-- Boost & More Actions Preview (Meta Suite Styled) -->
+                <div class="flex items-center gap-1 opacity-90 group-hover:opacity-100">
+                  <button class="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 transition shadow-2xs">
+                    Boost
+                  </button>
+                  <button class="w-7 h-7 flex items-center justify-center rounded-md border border-slate-300 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition shadow-2xs">
+                    <i class="fa-solid fa-ellipsis"></i>
+                  </button>
+                </div>
+              </div>
+            </td>
+
+            <!-- Date Published -->
+            <td class="py-3 px-4 whitespace-nowrap text-slate-600 align-middle">
+              ${post.formattedDate}
+            </td>
+
+            <!-- Status Indicator -->
+            <td class="py-3 px-4 whitespace-nowrap align-middle">
+              <span class="inline-flex items-center gap-1.5 text-slate-600 text-xs">
+                <i class="fa-solid fa-rocket text-slate-400 text-[11px]"></i>
+                ${post.status}
+              </span>
+            </td>
+
+            <!-- Metrics: Reach, Views, Viewers, Follows -->
+            <td class="py-3 px-4 text-right font-medium text-slate-800 align-middle">
+              ${formatNumber(post.reach)}
+            </td>
+            <td class="py-3 px-4 text-right font-medium text-slate-800 align-middle">
+              ${formatNumber(post.views)}
+            </td>
+            <td class="py-3 px-4 text-right font-medium text-slate-800 align-middle">
+              ${formatNumber(post.viewers)}
+            </td>
+            <td class="py-3 px-4 text-right font-medium text-slate-800 align-middle">
+              ${formatNumber(post.follows)}
+            </td>
+
+            <!-- External Link -->
+            <td class="py-3 px-4 text-center align-middle">
+              <a href="${post.permalink}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-600 transition" title="Open Post">
+                <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Helper: HTML escaping
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Loading & Notification Banners
+    function setLoading(isLoading, message = 'Loading...') {
+      const loader = document.getElementById('tableLoader');
+      const msgElem = document.getElementById('loadingMessage');
+      const refreshBtn = document.getElementById('fetchLiveBtn');
+      const icon = document.getElementById('refreshIcon');
+
+      if (isLoading) {
+        msgElem.textContent = message;
+        loader.classList.remove('hidden');
+        refreshBtn.disabled = true;
+        icon.classList.add('animate-spin');
+      } else {
+        loader.classList.add('hidden');
+        refreshBtn.disabled = false;
+        icon.classList.remove('animate-spin');
+      }
+    }
+
+    function showAlert(text, type = 'info') {
+      const container = document.getElementById('alertContainer');
+      container.classList.remove('hidden');
+
+      let colorClasses = 'bg-blue-50 border-blue-200 text-blue-800';
+      let icon = 'fa-circle-info text-blue-600';
+
+      if (type === 'error') {
+        colorClasses = 'bg-rose-50 border-rose-200 text-rose-800';
+        icon = 'fa-triangle-exclamation text-rose-600';
+      } else if (type === 'success') {
+        colorClasses = 'bg-emerald-50 border-emerald-200 text-emerald-800';
+        icon = 'fa-circle-check text-emerald-600';
+      }
+
+      container.innerHTML = `
+        <div class="border rounded-xl p-3.5 flex items-start justify-between gap-3 ${colorClasses} text-xs shadow-xs animate-fade-in">
+          <div class="flex items-center gap-2.5">
+            <i class="fa-solid ${icon} text-sm flex-shrink-0"></i>
+            <span class="font-medium">${escapeHtml(text)}</span>
+          </div>
+          <button onclick="dismissAlert()" class="text-slate-400 hover:text-slate-600 transition">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+      `;
+
+      // Auto dismiss after 7 seconds for non-errors
+      if (type !== 'error') {
+        setTimeout(dismissAlert, 7000);
+      }
+    }
+
+    function dismissAlert() {
+      const container = document.getElementById('alertContainer');
+      container.classList.add('hidden');
+      container.innerHTML = '';
+    }
+  </script>
+</body>
+</html>

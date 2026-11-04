@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import type { Post } from '../data/types';
-import { readPosts, readAppConfig, getCurrentDraft, updatePost, readPhotoCandidatesCache, writePhotoCandidatesCache } from '../data/dynamodb';
+import { readPosts, readAppConfig, getCurrentPost, deletePost, readPhotoCandidatesCache, writePhotoCandidatesCache } from '../data/dynamodb';
 import { loadPhotoCandidates, clearCandidatesCache } from '../data/s3-resources';
 import { classifyTheme } from '../services/theme.service';
 import {
@@ -11,7 +11,7 @@ import {
   updatePostCaption,
 } from '../services/pipeline.service';
 
-const POST_STATUSES: ReadonlyArray<Post['status']> = ['draft', 'posted', 'discarded'];
+const POST_STATUSES: ReadonlyArray<Post['status']> = ['draft', 'working', 'posted', 'discarded'];
 
 function respond(statusCode: number, body: unknown): APIGatewayProxyResult {
   return {
@@ -54,9 +54,9 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     if (method === 'GET' && path === '/api/posts/current') {
-      const draft = await getCurrentDraft();
-      if (!draft) return notFound();
-      const view = await getPostView(draft.id);
+      const workingPost = await getCurrentPost('working');
+      if (!workingPost) return notFound();
+      const view = await getPostView(workingPost.id);
       return view ? respond(200, view) : notFound();
     }
 
@@ -103,6 +103,13 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return respond(200, igData);
     }
 
+    if (method === 'GET' && path === '/api/insights') {
+      const { getInsights } = await import('../services/insights.service');
+      const requested = parseInt(event.queryStringParameters?.limit ?? '', 10);
+      const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 25) : 15;
+      return respond(200, await getInsights(limit));
+    }
+
     const match = path.match(/^\/api\/posts\/([^/]+)(?:\/([^/]+))?$/);
     if (!match) return notFound();
     const id = event.pathParameters?.id ?? decodeURIComponent(match[1]);
@@ -116,8 +123,11 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (method === 'DELETE' && !action) {
       const existing = await getPostView(id);
       if (!existing) return notFound();
-      await updatePost(id, { status: 'discarded' });
-      return respond(200, { id, status: 'discarded' });
+      if (existing.status !== 'draft' && existing.status !== 'working') {
+        return respond(409, { error: 'Only drafts can be discarded' });
+      }
+      await deletePost(id);
+      return respond(200, { id, status: 'deleted' });
     }
 
     if (method === 'POST' && action === 'select-photo') {

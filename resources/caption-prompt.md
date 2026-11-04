@@ -35,6 +35,9 @@ Avoid:
 • Excessive emojis
 • Sales-heavy language
 • Invented stories about the photographer
+• A stock legacy sentence that could be reused unchanged for any photograph
+
+Vary the legacy line's wording and sentence structure from caption to caption. Avoid falling back on the same “Ray had a gift for...” or “Ray had a way of...” construction. Connect Ray's legacy to something distinctive in this image when possible, but keep the phrasing natural and do not force a particular formula. Do not invent what Ray thought, felt, intended, or did while making the photograph.
 
 STRUCTURE
 
@@ -46,7 +49,7 @@ Write the caption in this structure:
 
 3. Atmosphere/story (2–3 sentences describing the moment suggested by the photo)
 
-4. Legacy line (1 sentence acknowledging Ray’s work documenting coastal landscapes)
+4. Legacy line (1 sentence acknowledging Ray's photography; vary its phrasing and connect it to this image where natural)
 
 5. Print call-to-action (simple and understated)
 

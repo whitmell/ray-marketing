@@ -41,6 +41,8 @@ Invoke-Aws cloudformation deploy --stack-name $StackName `
 
 $outputs = Get-StackOutputs
 Write-FrontendConfig $outputs
+Invoke-Aws s3 cp (Join-Path $ProjectRoot 'resources\caption-prompt.md') "s3://$($outputs.ResourcesBucketName)/caption-prompt.md"
+Write-Host 'Caption prompt uploaded.'
 Publish-Lambdas $outputs
 
 # Create the Cognito user if it does not exist yet
@@ -69,4 +71,4 @@ Write-Host '=== Deploy complete ==='
 Write-Host "URL:        https://$DomainName/"
 Write-Host "CloudFront: $($outputs.CloudFrontDomainName)"
 Write-Host "API:        $($outputs.ApiGatewayUrl)"
-Write-Host 'Next: run upload-resources.ps1 and (once) seed-dynamodb.ps1'
+Write-Host 'Next: run seed-dynamodb.ps1 if migrating existing data'
