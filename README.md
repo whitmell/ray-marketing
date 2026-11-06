@@ -9,6 +9,11 @@ Automated marketing pipeline for [Ray Matthews](https://raymatthews.com) fine ar
 3. **Working** — The latest post that has advanced past draft review. Generating a caption for a different draft returns the previous working post to Drafts.
 4. **Publish** — Post to Facebook and/or Instagram with one click; published posts appear under Posted.
 
+Generated captions use plain text and start with the photo title in double
+quotes. Existing captions are not changed; review or regenerate a working
+caption before publishing it. The dashboard displays captions literally,
+including any formatting characters added manually.
+
 Photos are classified into 13 theme categories (lighthouse, sunset-sunrise, beach-dunes, wildlife, etc.) and the pipeline avoids repeating recent themes.
 Only posted photos are excluded from future runs; draft candidates remain in the available photo pool.
 
@@ -65,7 +70,46 @@ infrastructure/
 └── _common.ps1                      # Shared PowerShell helpers
 ```
 
+## Local Development
+
+There is currently no local application server or fully configured local backend.
+`npm run dev`, `npm start`, and the old Docker setup are not available in this
+version. The frontend is static HTML and JavaScript; the backend runs in AWS
+Lambda and uses Cognito, DynamoDB, and S3.
+
+To serve the frontend files locally, install Python 3 and run this from the
+repository root:
+
+```powershell
+python -m http.server 3000 --bind 127.0.0.1 --directory frontend
+```
+
+Open [http://127.0.0.1:3000/](http://127.0.0.1:3000/) and press
+**Ctrl+C** in the terminal to stop the server. No npm install is needed to serve
+the frontend. This is a static-file preview, not a working local dashboard:
+
+- `frontend/config.js` is generated during deployment and ignored by Git. On a
+  fresh checkout, the page reports missing configuration. With the deployed
+  configuration, sign-in redirects to the deployed domain, not localhost.
+- Cognito only permits the deployed callback URL in the CloudFormation template.
+  The local origin would need to be registered and used as `redirectUri` for
+  PKCE sign-in to return to the same browser origin.
+- The frontend expects `/api/*` and `/photos/*` on the same origin. A local
+  setup would need to route these requests to suitable backend and photo
+  services; Python's static server does not do that. The pipeline Lambda URL
+  also permits cross-origin requests only from the deployed domain.
+- No local AWS service emulators, API proxy, or mock data are supplied. Connecting
+  a local frontend to the deployed services would use real data and could
+  modify or publish it.
+
+For a fully working dashboard, use the deployed site as described in
+[Quick Start](#quick-start). Frontend changes can be deployed with
+`.\infrastructure\update-frontend.ps1`; that script regenerates
+`frontend/config.js`, uploads the frontend, and invalidates CloudFront.
+
 ## Prerequisites
+
+For deployment:
 
 - **Node.js 22+**
 - **AWS CLI v2** configured with credentials (`aws configure`)
@@ -129,6 +173,11 @@ The ACM certificate validation can take 5–30 minutes on first deploy. CloudFor
 
 The deploy script uploads `resources/caption-prompt.md` automatically. This command uploads all three resource files, including `descriptions.json` and `upload-progress.json`; use it only when you intentionally want the local JSON files to replace the S3 copies.
 
+To update only the caption prompt without replacing the JSON resources, run
+`.\infrastructure\deploy.ps1`, or upload `resources/caption-prompt.md` to the
+stack's resources bucket as `caption-prompt.md`. Lambda-only updates do not
+upload the prompt.
+
 ### 5. Seed data (optional, one-time migration)
 
 If you have existing data in `data/posts.json` from the old local version:
@@ -177,7 +226,9 @@ npm run build          # Build Lambda bundles (esbuild)
 
 Output: `dist/api-handler.js` and `dist/pipeline-handler.js`.
 
-The build uses esbuild with CommonJS format targeting Node 22. AWS SDK packages are marked as external (provided by the Lambda runtime). Sharp is bundled — the build script installs the Linux-specific binary before building.
+The build uses esbuild with CommonJS format targeting Node 22. AWS SDK packages
+and Sharp are external to the bundles. `infrastructure/build-lambda.ps1`
+packages the bundles with Linux-compatible Sharp dependencies for deployment.
 
 ## Teardown
 

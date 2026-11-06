@@ -211,18 +211,8 @@
     });
   }
 
-  // Renders **bold** segments as <strong> without touching innerHTML.
   function renderCaptionInto(el, caption) {
-    el.textContent = '';
-    var re = /\*\*(.+?)\*\*/g;
-    var last = 0;
-    var m;
-    while ((m = re.exec(caption)) !== null) {
-      if (m.index > last) el.appendChild(document.createTextNode(caption.slice(last, m.index)));
-      el.appendChild(h('strong', { text: m[1] }));
-      last = m.index + m[0].length;
-    }
-    if (last < caption.length) el.appendChild(document.createTextNode(caption.slice(last)));
+    el.textContent = caption;
   }
 
   function photoUrl(filename) {
@@ -577,7 +567,7 @@
       ]),
       h('p', {
         class: 'caption-text text-sm text-gray-600',
-        text: post.caption ? (post.caption.length > 240 ? post.caption.slice(0, 240).replace(/\*\*/g, '') + '...' : post.caption.replace(/\*\*/g, '')) : ''
+        text: post.caption ? (post.caption.length > 240 ? post.caption.slice(0, 240) + '...' : post.caption) : ''
       })
     ]);
     var published = new Set((post.publishedTo || []).map(function (record) { return record.platform; }));

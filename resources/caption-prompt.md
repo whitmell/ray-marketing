@@ -43,7 +43,7 @@ STRUCTURE
 
 Write the caption in this structure:
 
-1. Title line (use the provided title)
+1. Title line (use the exact provided title enclosed in straight double quotation marks, for example "Engelhard Sunrise")
 
 2. Opening hook (1 sentence describing the scene)
 
@@ -98,6 +98,9 @@ Nature and seascapes
 OUTPUT
 
 Return only the caption text.
+Use plain text only: do not use Markdown formatting such as bold, italics,
+headings, links, lists, or code blocks. Write URLs as plain text and retain
+hashtags.
 
 INPUTS YOU WILL RECEIVE
 
